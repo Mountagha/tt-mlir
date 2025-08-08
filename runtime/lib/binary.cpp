@@ -7,7 +7,7 @@
 
 #include "flatbuffers/idl.h"
 
-#include "tt/runtime/detail/logger.h"
+#include "tt/runtime/detail/common/logger.h"
 #include "tt/runtime/tensor_cache.h"
 #include "tt/runtime/types.h"
 #include "tt/runtime/utils.h"
@@ -54,7 +54,7 @@ Binary &Binary::operator=(std::shared_ptr<void> handle) {
 
 std::uint64_t Binary::nextBinaryId() {
   static std::atomic<uint64_t> id{0};
-  return id++;
+  return id.fetch_add(1, std::memory_order_relaxed);
 }
 
 std::uint64_t Binary::id() const { return binaryId; }
@@ -136,11 +136,11 @@ std::string getVersion(Flatbuffer binary) {
          std::to_string(version->patch());
 }
 
-std::string_view getSchemaHash(Flatbuffer binary) {
+std::string getSchemaHash(Flatbuffer binary) {
   return getBinary(binary)->schema_hash()->c_str();
 }
 
-std::string_view getTTMLIRGitHash(Flatbuffer binary) {
+std::string getTTMLIRGitHash(Flatbuffer binary) {
   return getBinary(binary)->ttmlir_git_hash()->c_str();
 }
 
@@ -220,20 +220,11 @@ std::string getProgramOutputsAsJson(Flatbuffer binary,
       ::tt::target::ttnn::TTNNBinaryBinarySchema::size());
 }
 
-std::string getProgramMlirAsJson(Flatbuffer binary,
-                                 std::uint32_t programIndex) {
-  const auto *programs = getBinary(binary)->programs();
-  LOG_ASSERT(programIndex < programs->size(), "Program index out of bounds");
-  const auto *mlir = programs->Get(programIndex)->debug_info()->mlir();
+std::string getMlirAsJson(Flatbuffer binary) {
+  const auto *mlir = getBinary(binary)->mlir();
   return asJsonFromTable(mlir,
                          ::tt::target::ttnn::TTNNBinaryBinarySchema::data(),
                          ::tt::target::ttnn::TTNNBinaryBinarySchema::size());
-}
-
-std::string getProgramCpp(Flatbuffer binary, std::uint32_t programIndex) {
-  const auto *programs = getBinary(binary)->programs();
-  LOG_ASSERT(programIndex < programs->size(), "Program index out of bounds");
-  return programs->Get(programIndex)->debug_info()->cpp()->c_str();
 }
 
 const ::tt::target::GoldenTensor *getDebugInfoGolden(Flatbuffer binary,
@@ -271,11 +262,11 @@ std::string getVersion(Flatbuffer binary) {
          std::to_string(version->patch());
 }
 
-std::string_view getSchemaHash(Flatbuffer binary) {
+std::string getSchemaHash(Flatbuffer binary) {
   return getBinary(binary)->schema_hash()->c_str();
 }
 
-std::string_view getTTMLIRGitHash(Flatbuffer binary) {
+std::string getTTMLIRGitHash(Flatbuffer binary) {
   return getBinary(binary)->ttmlir_git_hash()->c_str();
 }
 
@@ -313,20 +304,11 @@ std::string getProgramOutputsAsJson(Flatbuffer binary,
       ::tt::target::metal::TTMetalBinaryBinarySchema::size());
 }
 
-std::string getProgramMlirAsJson(Flatbuffer binary,
-                                 std::uint32_t programIndex) {
-  const auto *programs = getBinary(binary)->programs();
-  LOG_ASSERT(programIndex < programs->size(), "Program index out of bounds");
-  const auto *mlir = programs->Get(programIndex)->debug_info()->mlir();
-  return asJsonFromTable(mlir,
-                         ::tt::target::ttnn::TTNNBinaryBinarySchema::data(),
-                         ::tt::target::ttnn::TTNNBinaryBinarySchema::size());
-}
-
-std::string getProgramCpp(Flatbuffer binary, std::uint32_t programIndex) {
-  const auto *programs = getBinary(binary)->programs();
-  LOG_ASSERT(programIndex < programs->size(), "Program index out of bounds");
-  return programs->Get(programIndex)->debug_info()->cpp()->c_str();
+std::string getMlirAsJson(Flatbuffer binary) {
+  const auto *mlir = getBinary(binary)->mlir();
+  return asJsonFromTable(
+      mlir, ::tt::target::metal::TTMetalBinaryBinarySchema::data(),
+      ::tt::target::metal::TTMetalBinaryBinarySchema::size());
 }
 
 static std::vector<TensorDesc>
@@ -399,11 +381,11 @@ std::string getVersion(Flatbuffer binary) {
          std::to_string(version->patch());
 }
 
-std::string_view getSchemaHash(Flatbuffer binary) {
+std::string getSchemaHash(Flatbuffer binary) {
   return getBinary(binary)->schema_hash()->c_str();
 }
 
-std::string_view getTTMLIRGitHash(Flatbuffer binary) {
+std::string getTTMLIRGitHash(Flatbuffer binary) {
   return getBinary(binary)->ttmlir_git_hash()->c_str();
 }
 
@@ -451,7 +433,7 @@ void Flatbuffer::storeToMemory(
   std::memcpy(serializedFlatbuffer.data(), handle.get(), size);
 }
 
-std::string_view Flatbuffer::getFileIdentifier() const {
+std::string Flatbuffer::getFileIdentifier() const {
   if (::tt::target::ttnn::SizePrefixedTTNNBinaryBufferHasIdentifier(
           handle.get())) {
     return ::tt::target::ttnn::TTNNBinaryIdentifier();
@@ -489,7 +471,7 @@ std::string Flatbuffer::getVersion() const {
   LOG_FATAL("Unsupported binary format");
 }
 
-std::string_view Flatbuffer::getSchemaHash() const {
+std::string Flatbuffer::getSchemaHash() const {
   if (::tt::target::ttnn::SizePrefixedTTNNBinaryBufferHasIdentifier(
           handle.get())) {
     return ttnn::getSchemaHash(*this);
@@ -530,7 +512,7 @@ bool Flatbuffer::checkSchemaHash() const {
   LOG_FATAL("Unsupported binary format");
 }
 
-std::string_view Flatbuffer::getTTMLIRGitHash() const {
+std::string Flatbuffer::getTTMLIRGitHash() const {
   if (::tt::target::ttnn::SizePrefixedTTNNBinaryBufferHasIdentifier(
           handle.get())) {
     return ttnn::getTTMLIRGitHash(*this);
@@ -603,7 +585,7 @@ Binary::getProgramMeshShape(std::uint32_t programIndex) const {
     const tt::target::Dim2d *const mesh_shape =
         ttnn::getBinary(*this)->programs()->Get(programIndex)->mesh_shape();
     assert(mesh_shape != nullptr);
-    return std::make_pair(mesh_shape->x(), mesh_shape->y());
+    return std::make_pair(mesh_shape->y(), mesh_shape->x());
   }
 
   if (::tt::target::metal::SizePrefixedTTMetalBinaryBufferHasIdentifier(
@@ -611,7 +593,7 @@ Binary::getProgramMeshShape(std::uint32_t programIndex) const {
     const tt::target::Dim2d *const mesh_shape =
         metal::getBinary(*this)->programs()->Get(programIndex)->mesh_shape();
     assert(mesh_shape != nullptr);
-    return std::make_pair(mesh_shape->x(), mesh_shape->y());
+    return std::make_pair(mesh_shape->y(), mesh_shape->x());
   }
 
   LOG_FATAL("Unsupported binary format");
@@ -697,29 +679,15 @@ std::string Binary::getProgramOutputsAsJson(std::uint32_t programIndex) const {
   LOG_FATAL("Unsupported binary format");
 }
 
-std::string Binary::getProgramMlirAsJson(std::uint32_t programIndex) const {
+std::string Binary::getMlirAsJson() const {
   if (::tt::target::ttnn::SizePrefixedTTNNBinaryBufferHasIdentifier(
           handle.get())) {
-    return ttnn::getProgramMlirAsJson(*this, programIndex);
+    return ttnn::getMlirAsJson(*this);
   }
 
   if (::tt::target::metal::SizePrefixedTTMetalBinaryBufferHasIdentifier(
           handle.get())) {
-    return metal::getProgramMlirAsJson(*this, programIndex);
-  }
-
-  LOG_FATAL("Unsupported binary format");
-}
-
-std::string Binary::getProgramCpp(std::uint32_t programIndex) const {
-  if (::tt::target::ttnn::SizePrefixedTTNNBinaryBufferHasIdentifier(
-          handle.get())) {
-    return ttnn::getProgramCpp(*this, programIndex);
-  }
-
-  if (::tt::target::metal::SizePrefixedTTMetalBinaryBufferHasIdentifier(
-          handle.get())) {
-    return metal::getProgramCpp(*this, programIndex);
+    return metal::getMlirAsJson(*this);
   }
 
   LOG_FATAL("Unsupported binary format");

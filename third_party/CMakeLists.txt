@@ -1,21 +1,9 @@
 include(ExternalProject)
 
-set(TT_METAL_VERSION "5119c0b25a2d09a3116fb0427a39e4146d8990d6")
+set(TT_METAL_VERSION "8e131829e4f91371a8dd59c0c4a6fa83ce13a87e")
 
 set(CMAKE_INSTALL_MESSAGE LAZY)  # suppress "Up-to-date:..." messages in incremental builds
 
-if ("$ENV{ARCH_NAME}" STREQUAL "grayskull")
-  set(ARCH_NAME "grayskull")
-  set(ARCH_EXTRA_DIR "grayskull")
-elseif ("$ENV{ARCH_NAME}" STREQUAL "wormhole_b0")
-  set(ARCH_NAME "wormhole")
-  set(ARCH_EXTRA_DIR "wormhole/wormhole_b0_defines")
-elseif ("$ENV{ARCH_NAME}" STREQUAL "blackhole")
-  set(ARCH_NAME "blackhole")
-  set(ARCH_EXTRA_DIR "blackhole")
-else()
-  message(FATAL_ERROR "Unsupported ARCH_NAME: $ENV{ARCH_NAME}")
-endif()
 
 if (DEFINED ENV{CPM_SOURCE_CACHE})
   set(CPM_SOURCE_CACHE $ENV{CPM_SOURCE_CACHE})
@@ -43,9 +31,6 @@ set(TTMETAL_INCLUDE_DIRS
   ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_metal/third_party/umd
   ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_metal/third_party/umd/device/api
   ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_metal/hw/inc
-  ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_metal/hw/inc/${ARCH_NAME}
-  ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_metal/hw/inc/${ARCH_EXTRA_DIR}
-  ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_metal/third_party/umd/src/firmware/riscv/${ARCH_NAME}
   ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_metal/third_party/taskflow
   ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_stl
   ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/tt_stl/tt_stl
@@ -65,6 +50,7 @@ set(TTMETAL_INCLUDE_DIRS
   PARENT_SCOPE
 )
 
+set(TTMETAL_BUILD_DIR ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/build)
 set(TTMETAL_LIBRARY_DIR ${PROJECT_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/build/lib)
 
 set(TTNN_LIBRARY_PATH ${TTMETAL_LIBRARY_DIR}/_ttnncpp.so)
@@ -78,6 +64,7 @@ else()
   set(TRACY_LIBRARY_PATH "")
 endif()
 
+set(TTMETAL_BUILD_DIR ${TTMETAL_BUILD_DIR} PARENT_SCOPE)
 set(TTMETAL_LIBRARY_DIR ${TTMETAL_LIBRARY_DIR} PARENT_SCOPE)
 set(TTNN_LIBRARY_PATH ${TTNN_LIBRARY_PATH} PARENT_SCOPE)
 set(TTNN_PY_LIBRARY_PATH ${TTNN_PY_LIBRARY_PATH} PARENT_SCOPE)
@@ -92,12 +79,19 @@ if ("${CMAKE_CXX_COMPILER_LAUNCHER}" STREQUAL "ccache")
   set(TTMETAL_DISABLE_PRECOMPILE_HEADERS ON)
 endif()
 
-if (TTMLIR_ENABLE_RUNTIME)
+if (TTMLIR_ENABLE_RUNTIME OR TTMLIR_ENABLE_OPMODEL)
 set(TTMETAL_BUILD_TYPE "Release")
 if (CMAKE_BUILD_TYPE STREQUAL "Debug")
   set(TTMETAL_BUILD_TYPE "Debug")
 elseif (CMAKE_BUILD_TYPE STREQUAL "Asan")
   set(TTMETAL_BUILD_TYPE "ASan")
+endif()
+
+if(CMAKE_SYSTEM_PROCESSOR MATCHES "^(x86_64|AMD64|x86|i386|i686)$")
+  set(ENABLE_DISTRIBUTED ON)
+else()
+  message(STATUS "Disabling tt-metal distributed support because of mpi x86 dep")
+  set(ENABLE_DISTRIBUTED OFF)
 endif()
 
 set(METAL_BUILD_DIR ${TTMLIR_SOURCE_DIR}/third_party/tt-metal/src/tt-metal/build)
@@ -124,6 +118,7 @@ ExternalProject_Add(
     -DCMAKE_DISABLE_PRECOMPILE_HEADERS=${TTMETAL_DISABLE_PRECOMPILE_HEADERS}
     -DENABLE_TRACY=${TT_RUNTIME_ENABLE_PERF_TRACE}
     -DENABLE_LIBCXX=OFF
+    -DENABLE_DISTRIBUTED=${ENABLE_DISTRIBUTED}
   GIT_REPOSITORY https://github.com/tenstorrent/tt-metal.git
   GIT_TAG ${TT_METAL_VERSION}
   GIT_PROGRESS OFF
@@ -239,7 +234,7 @@ install(CODE
     )"
     COMPONENT SharedLib
 )
-else() # TTMLIR_ENABLE_RUNTIME
+else() # TTMLIR_ENABLE_RUNTIME OR TTMLIR_ENABLE_OPMODEL
   add_library(tt-metal INTERFACE)
   add_library(TTNN_LIBRARY INTERFACE)
   add_library(TTNN_PY_LIBRARY INTERFACE)
@@ -248,4 +243,4 @@ else() # TTMLIR_ENABLE_RUNTIME
   add_library(tt-metal-download INTERFACE EXCLUDE_FROM_ALL)
   add_library(tt-metal-update INTERFACE EXCLUDE_FROM_ALL)
   add_library(tt-metal-configure INTERFACE EXCLUDE_FROM_ALL)
-endif() # TTMLIR_ENABLE_RUNTIME
+endif() # TTMLIR_ENABLE_RUNTIME OR TTMLIR_ENABLE_OPMODEL

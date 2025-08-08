@@ -11,6 +11,7 @@ include "ttmlir/Dialect/TTNN/IR/TTNNBase.td"
 include "ttmlir/Dialect/TTNN/IR/TTNNOpsTypes.td"
 include "ttmlir/Dialect/TTNN/IR/TTNNOpsEnums.td"
 include "ttmlir/Dialect/TTNN/IR/TTNNTraits.td"
+
 include "mlir/Interfaces/InferTypeOpInterface.td"
 include "mlir/Interfaces/DestinationStyleOpInterface.td"
 include "mlir/Interfaces/ControlFlowInterfaces.td"
@@ -32,7 +33,9 @@ def TTNN_GetDeviceOp : TTNN_Op<"get_device", [TTCore_DuplicateConstEvalTrait]> {
     let results = (outs TTNN_Device:$device);
 }
 
-def TTNN_ToMemoryConfigOp : TTNN_Op<"to_memory_config", [HasMemoryConfigTrait]> {
+def TTNN_ToMemoryConfigOp : TTNN_Op<"to_memory_config", [HasMemoryConfigTrait,
+      DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "ToMemoryConfig op.";
     let description = [{
       This op converts the memory config of the input tensor based on the given memory config.
@@ -156,7 +159,8 @@ class TTNN_ElementwiseUnaryOp<string mnemonic, list<Trait> traits = []> :
 }
 
 class TTNN_ElementwiseBinaryOp<string mnemonic, list<Trait> traits = []> :
-    TTNN_Op<mnemonic, [HasMemoryConfigTrait, HasOutputDTypeTrait] # traits> {
+    TTNN_Op<mnemonic, [HasMemoryConfigTrait, HasOutputDTypeTrait,
+    DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>] # traits> {
     let summary = "Eltwise binary op.";
     let description = [{
       Eltwise binary op.
@@ -241,7 +245,9 @@ class TTNN_ElementwiseTernaryOp<string mnemonic, list<Trait> traits = []> :
     ];
 }
 
-def TTNN_WhereOp : TTNN_ElementwiseTernaryOp<"where"> {
+def TTNN_WhereOp : TTNN_ElementwiseTernaryOp<"where", [ExplicateOperandBroadcastsTrait,
+       DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise where.";
     let description = [{
       Eltwise where operation.
@@ -257,7 +263,9 @@ def TTNN_WhereOp : TTNN_ElementwiseTernaryOp<"where"> {
     }];
 }
 
-def TTNN_AbsOp : TTNN_ElementwiseUnaryOp<"abs"> {
+def TTNN_AbsOp : TTNN_ElementwiseUnaryOp<"abs",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise absolute.";
     let description = [{
       Eltwise absolute operation.
@@ -271,14 +279,18 @@ def TTNN_CbrtOp : TTNN_ElementwiseUnaryOp<"cbrt"> {
     }];
 }
 
-def TTNN_CeilOp : TTNN_ElementwiseUnaryOp<"ceil"> {
+def TTNN_CeilOp : TTNN_ElementwiseUnaryOp<"ceil",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise ceil.";
     let description = [{
       Eltwise ceil operation.
     }];
 }
 
-def TTNN_SignOp: TTNN_ElementwiseUnaryOp<"sign"> {
+def TTNN_SignOp: TTNN_ElementwiseUnaryOp<"sign",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise sign operation.";
     let description = [{
       Returns the sign of the `operand` element-wise and produces a `result`
@@ -299,49 +311,63 @@ def TTNN_CosOp : TTNN_ElementwiseUnaryOp<"cos",
     }];
 }
 
-def TTNN_ExpOp : TTNN_ElementwiseUnaryOp<"exp"> {
+def TTNN_ExpOp : TTNN_ElementwiseUnaryOp<"exp",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise exponential.";
     let description = [{
       Eltwise exponential operation.
     }];
 }
 
-def TTNN_ErfOp : TTNN_ElementwiseUnaryOp<"erf"> {
+def TTNN_ErfOp : TTNN_ElementwiseUnaryOp<"erf",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise erf op.";
     let description = [{
         Eltwise erf operation. Calculates erf(x) for each element of the input tensor.
       }];
 }
 
-def TTNN_ErfcOp : TTNN_ElementwiseUnaryOp<"erfc"> {
+def TTNN_ErfcOp : TTNN_ElementwiseUnaryOp<"erfc",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise erfc op.";
     let description = [{
         Eltwise erfc operation. Calculates erfc(x) for each element of the input tensor.
       }];
 }
 
-def TTNN_FloorOp: TTNN_ElementwiseUnaryOp<"floor"> {
+def TTNN_FloorOp: TTNN_ElementwiseUnaryOp<"floor",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise floor op.";
     let description = [{
       Eltwise floor operation.
     }];
 }
 
-def TTNN_GeluOp: TTNN_ElementwiseUnaryOp<"gelu"> {
+def TTNN_GeluOp: TTNN_ElementwiseUnaryOp<"gelu",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
   let summary = "Eltwise GELU.";
   let description = [{
     Eltwise GELU operation.
   }];
 }
 
-def TTNN_IsFiniteOp: TTNN_ElementwiseUnaryOp<"isfinite"> {
+def TTNN_IsFiniteOp: TTNN_ElementwiseUnaryOp<"isfinite",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise isfinite op.";
     let description = [{
       Eltwise isfinite operation.
     }];
 }
 
-def TTNN_LogicalNotOp: TTNN_ElementwiseUnaryOp<"logical_not"> {
+def TTNN_LogicalNotOp: TTNN_ElementwiseUnaryOp<"logical_not",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise logical not op.";
     let description = [{
       Eltwise logical not operation.
@@ -361,21 +387,27 @@ def TTNN_BitwiseNotOp : TTNN_ElementwiseUnaryOp<"bitwise_not"> {
     }];
 }
 
-def TTNN_NegOp : TTNN_ElementwiseUnaryOp<"neg"> {
+def TTNN_NegOp : TTNN_ElementwiseUnaryOp<"neg",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise negate.";
     let description = [{
       Eltwise negate operation.
     }];
 }
 
-def TTNN_TanOp: TTNN_ElementwiseUnaryOp<"tan"> {
+def TTNN_TanOp: TTNN_ElementwiseUnaryOp<"tan",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise tan op.";
     let description = [{
       Eltwise tan operation.
     }];
 }
 
-def TTNN_AtanOp: TTNN_ElementwiseUnaryOp<"atan"> {
+def TTNN_AtanOp: TTNN_ElementwiseUnaryOp<"atan",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise arctangent op.";
     let description = [{
       Performs an elementwise arctangent (`atan`) operation on the input tensor.
@@ -394,7 +426,9 @@ def TTNN_AtanOp: TTNN_ElementwiseUnaryOp<"atan"> {
     }];
 }
 
-def TTNN_TanhOp: TTNN_ElementwiseUnaryOp<"tanh"> {
+def TTNN_TanhOp: TTNN_ElementwiseUnaryOp<"tanh",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise tanh op.";
 
     let extraClassDeclaration = [{
@@ -445,7 +479,9 @@ def TTNN_SqrtOp : TTNN_ElementwiseUnaryOp<"sqrt",
     }];
 }
 
-def TTNN_RsqrtOp : TTNN_ElementwiseUnaryOp<"rsqrt"> {
+def TTNN_RsqrtOp : TTNN_ElementwiseUnaryOp<"rsqrt",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise rsqrt.";
     let description = [{
       Eltwise rsqrt operation.
@@ -461,14 +497,18 @@ def TTNN_SigmoidOp : TTNN_ElementwiseUnaryOp<"sigmoid",
     }];
 }
 
-def TTNN_LogOp : TTNN_ElementwiseUnaryOp<"log"> {
+def TTNN_LogOp : TTNN_ElementwiseUnaryOp<"log",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise logarithm.";
     let description = [{
       Eltwise logarithm operation.
     }];
 }
 
-def TTNN_Log1pOp: TTNN_ElementwiseUnaryOp<"log1p"> {
+def TTNN_Log1pOp: TTNN_ElementwiseUnaryOp<"log1p",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise log1p operation.";
     let description = [{
         Performs element-wise logarithm plus one operation on `operand` tensor and
@@ -480,7 +520,9 @@ def TTNN_Log1pOp: TTNN_ElementwiseUnaryOp<"log1p"> {
       }];
 }
 
-def TTNN_Expm1Op: TTNN_ElementwiseUnaryOp<"expm1"> {
+def TTNN_Expm1Op: TTNN_ElementwiseUnaryOp<"expm1",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
   let description = [{
     Performs element-wise exponential minus one operation on `operand` tensor
     and stores the result in the output tensor.
@@ -515,7 +557,9 @@ class TTNN_ElementwiseUnaryWithFloatParameterOp<string mnemonic, list<Trait> tra
     ];
 }
 
-def TTNN_LeakyReluOp : TTNN_ElementwiseUnaryWithFloatParameterOp<"leaky_relu"> {
+def TTNN_LeakyReluOp : TTNN_ElementwiseUnaryWithFloatParameterOp<"leaky_relu",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Eltwise leaky relu operation.";
     let description = [{
       The Leaky ReLU (Rectified Linear Unit) operation computes an element-wise
@@ -538,9 +582,7 @@ def TTNN_LeakyReluOp : TTNN_ElementwiseUnaryWithFloatParameterOp<"leaky_relu"> {
     }];
 }
 
-def TTNN_AddOp : TTNN_ElementwiseBinaryOp<"add",
-      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
-      > {
+def TTNN_AddOp : TTNN_ElementwiseBinaryOp<"add"> {
 
     let summary = "Eltwise add.";
     let description = [{
@@ -552,6 +594,21 @@ def TTNN_DivideOp : TTNN_ElementwiseBinaryOp<"divide"> {
     let summary = "Eltwise divide.";
     let description = [{
       Eltwise divide operation.
+    }];
+}
+
+def TTNN_MultiplyOp : TTNN_ElementwiseBinaryOp<"multiply"> {
+
+    let summary = "Eltwise multiply.";
+    let description = [{
+      Eltwise multiply operation.
+    }];
+}
+
+def TTNN_SubtractOp : TTNN_ElementwiseBinaryOp<"subtract"> {
+    let summary = "Eltwise subtract.";
+    let description = [{
+      Eltwise subtract operation.
     }];
 }
 
@@ -689,26 +746,8 @@ def TTNN_MinimumOp :  TTNN_ElementwiseBinaryCompositeOp<"minimum",
     }];
 }
 
-def TTNN_MultiplyOp : TTNN_ElementwiseBinaryOp<"multiply",
-      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
-      > {
 
-    let summary = "Eltwise multiply.";
-    let description = [{
-      Eltwise multiply operation.
-    }];
-}
-
-def TTNN_SubtractOp : TTNN_ElementwiseBinaryOp<"subtract",
-      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
-      > {
-    let summary = "Eltwise subtract.";
-    let description = [{
-      Eltwise subtract operation.
-    }];
-}
-
-def TTNN_RemainderOp : TTNN_ElementwiseBinaryCompositeOp<"remainder"> {
+def TTNN_RemainderOp : TTNN_ElementwiseBinaryCompositeOp<"remainder", [ExplicateOperandBroadcastsTrait]> {
     let summary = "Eltwise remainder.";
     let description = [{
       Performs element-wise remainder of dividend lhs and divisor rhs tensors and produces a
@@ -968,7 +1007,9 @@ def TTNN_FillCacheOp : TTNN_InplaceOp<"fill_cache"> {
   let hasVerifier = 1;
 }
 
-def TTNN_EmbeddingBackwardOp : TTNN_Op<"embedding_bw"> {
+def TTNN_EmbeddingBackwardOp : TTNN_Op<"embedding_bw",
+      [DeclareOpInterfaceMethods<TTNN_OpModelInterface, ["getOpConstraints", "getOpRuntime"]>]
+      > {
     let summary = "Embedding backward op.";
     let description = [{
       Embedding backward operation. Generates the gradient of the embedding operation with respect to the input.
@@ -1725,6 +1766,43 @@ def TTNN_ArangeOp : TTNN_CreationOp<"arange"> {
   let hasVerifier = 1;
 }
 
+def TTNN_RandOp : TTNN_CreationOp<"rand"> {
+  let summary = "Random number generation operation.";
+  let description = [{
+    Returns a tensor filled with random numbers drawn from a uniform distribution over given interval [low, high) [Default: [0, 1)].
+
+    Example:
+      %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device
+      %1 = "ttnn.rand"(%0) <{dtype = #ttcore.supportedDataTypes<bf16>, high = 1.000000e+00 : f32, layout = #ttnn.layout<tile>, low = 0.000000e+00 : f32, memory_config = #ttnn.memory_config<#dram, <interleaved>>, seed = 0 : ui32, size = [32 : i32, 32 : i32]}> : (!ttnn.device) -> tensor<32x32xbf16, #ttnn_layout1>
+
+    Attributes:
+      - `size` (TTNN_ShapeAttr): The shape of the tensor to create.
+      - `device` (TTNN_Device): The device where the trace was captured.
+      - `dtype` (mlir:Type): Data type of the returned tensor.
+      - `layout` (TTNN_LayoutAttr): The layout for the output tensor.
+      - `memory_config` (TTNN_MemoryConfigAttr): The memory configuration for the output tensor.
+      - `low` (Float): The lower bound of the range (inclusive) [Default: 0.0].
+      - `high` (Float): The upper bound of the range (exclusive) [Default: 1.0].
+      - `seed` (Integer): Value to initialize the random number generator for reproducible results [Default: 0].
+
+    Outputs:
+      - `result` (Tensor): The generated tensor containing the random values.
+  }];
+
+  let arguments = (ins TTNN_ShapeAttr:$size,
+                       TTNN_Device:$device,
+                       DefaultValuedAttr<TTCore_DataTypeAttr, "mlir::tt::ttcore::DataType::BFloat16">:$dtype,
+                       DefaultValuedAttr<TTNN_LayoutAttr, "mlir::tt::ttnn::Layout::Tile">:$layout,
+                       TTNN_MemoryConfigAttr:$memory_config,
+                       DefaultValuedAttr<F32Attr, "0.0">:$low,
+                       DefaultValuedAttr<F32Attr, "1.0">:$high,
+                       DefaultValuedAttr<UI32Attr, "0">:$seed);
+
+  let results = (outs AnyRankedTensor:$result);
+
+  let hasVerifier = 1;
+}
+
 class TTNN_NamedFullOp<string mnemonic, list<Trait> traits = []> :
   TTNN_CreationOp<mnemonic, [HasMemoryConfigTrait] # traits> {
   let arguments = (ins TTNN_ShapeAttr:$shape,
@@ -1748,12 +1826,6 @@ def TTNN_ZerosOp : TTNN_NamedFullOp<"zeros"> {
     Example:
       %0 = "ttnn.zeros"() <{shape = array<i32:64, 28, 28>}> : () -> tensor<64x28x28xbf16>
       // %0: [[[0, 0, 0, ..., 0], [0, 0, 0, ..., 0], ..., [0, 0, 0, ..., 0]]]
-  }];
-
-  let extraClassDeclaration = [{
-    wa::TTNNOperandsWorkarounds getOperandsWorkarounds() {
-      return wa::TTNNOperandsWorkaroundsFactory::createZerosOpOperandsWorkarounds(getType());
-    }
   }];
 }
 
@@ -1801,12 +1873,6 @@ def TTNN_FullOp : TTNN_CreationOp<"full"> {
     OpBuilder<(ins "Type": $resultType, "Attribute": $fillValue, "Value": $device)>
   ];
 
-  let extraClassDeclaration = [{
-    wa::TTNNOperandsWorkarounds getOperandsWorkarounds() {
-      auto outputType = getType();
-      return wa::TTNNOperandsWorkaroundsFactory::createFullOpOperandsWorkarounds(outputType);
-    }
-  }];
 }
 
 def TTNN_ConstantOp : TTNN_CreationOp<"constant", [AllShapesMatch<["value", "result"]>]> {
@@ -2155,67 +2221,6 @@ def TTNN_RequantizeOp : TTNN_Op<"requantize"> {
     let hasVerifier = 1;
 }
 
-def TTNN_TraceOp : TTNN_Op<"trace"> {
-    let summary = "Trace capture and execute operation.";
-    let description = [{
-      Executes metal trace for the called function within the trace op. The called function will be a collection
-      of hoisted operations from the original graph. For now, all ttnn operations that come after getDevice and const-eval
-      will be hoisted.
-
-      Inputs:
-        - `device` TTNN_Device: The device to capture and execute the trace on.
-        - `cq_id` i32: The command queue to capture the trace with. Must be 0 or 1.
-        - `blocking` bool: Whether the trace should be executed synchronously.
-        - `callee` FlatSymbolRefAttr: The symbol of the function to trace.
-        - `inputs` Variadic<AnyRankedTensor>: The input tensors to the trace.
-
-      Outputs:
-        - `results` Variadic<AnyRankedTensor>: The output tensors from the trace.
-
-      Example:
-
-      ```mlir
-      %0 = ttir.empty() : tensor<32x32xbf16>
-      %1 = "ttir.add"(%arg0, %arg1, %0) : (tensor<32x32xbf16>, tensor<32x32xbf16>, tensor<32x32xbf16>) -> tensor<32x32xbf16>
-      return %1 : tensor<32x32xbf16>
-      ```
-
-      will generate the following trace function (arbitrarily naming it as `single_add_trace_0`):
-
-      ```mlir
-      func.func @single_add_trace_0(%arg0: tensor<32x32xbf16, #ttnn_layout>, %arg1: tensor<32x32xbf16, #ttnn_layout>) -> tensor<32x32xbf16, #ttnn_layout> attributes {ttnn.trace} {
-        %0 = "ttnn.add"(%arg0, %arg1) : (tensor<32x32xbf16, #ttnn_layout>, tensor<32x32xbf16, #ttnn_layout>) -> tensor<32x32xbf16, #ttnn_layout>
-        return %0 : tensor<32x32xbf16, #ttnn_layout>
-      }
-      ```
-
-      The main function call will get transformed to a ttnn.trace call that traces the `single_add_trace_0` function:
-
-      ```mlir
-      %0 = "ttnn.get_device"() <{mesh_offset = #ttnn<mesh_offset 0x0>, mesh_shape = #ttnn<mesh_shape 1x1>}> : () -> !ttnn.device
-      %1 = ttnn.trace(%0, 0, false, @single_add_trace_0, [%arg0, %arg1]) : (tensor<32x32xbf16, #ttnn_layout>, tensor<32x32xbf16, #ttnn_layout>) -> tensor<32x32xbf16, #ttnn_layout>
-      ```
-    }];
-
-    let arguments = (ins
-      TTNN_Device:$device,
-      I32Attr:$cq_id,
-      BoolAttr:$blocking,
-      FlatSymbolRefAttr:$callee,
-      Variadic<AnyRankedTensor>:$inputs
-    );
-
-    let results = (outs
-      Variadic<AnyRankedTensor>:$results
-    );
-
-    let assemblyFormat = [{
-      `(` $device `,` $cq_id `,` $blocking `,` $callee `,` `[` $inputs `]` `)` attr-dict `:` functional-type($inputs, $results)
-    }];
-
-    let hasVerifier = 1;
-}
-
 def TTNN_PointToPointOp: TTNN_Op<"point_to_point"> {
   let summary = "Point To Point operation.";
   let description = [{
@@ -2237,4 +2242,111 @@ def TTNN_PointToPointOp: TTNN_Op<"point_to_point"> {
   let results = (outs AnyRankedTensor:$result);
   let hasVerifier = 1;
 }
+
+def TTNN_WriteTensorOp : TTNN_InplaceOp<"write_tensor"> {
+  let summary = "Write tensor op.";
+  let description = [{
+    Copies host_tensor data into device_tensor through cq_id.
+    Memory copy is done in place, thus no output is returned.
+    Inputs:
+      - `host_tensor` AnyRankedTensor: The host tensor to copy.
+      - `device_tensor` AnyRankedTensor: The device tensor to copy into.
+      - `blocking` bool: Whether the copy should be executed synchronously.
+      - `cq_id` i32: The command queue to copy the tensor with. Must be 0 or 1.
+  }];
+
+  let arguments = (ins AnyRankedTensor:$host_tensor,
+                       Arg<AnyRankedTensor, "device tensor", [MemWrite]>:$device_tensor,
+                       DefaultValuedAttr<BoolAttr, "false">:$blocking,
+                       DefaultValuedAttr<UI32Attr, "0">:$cq_id);
+
+  let hasVerifier = 1;
+}
+
+def TTNN_BeginTraceCaptureOp : TTNN_MemoryEffectOp<"begin_trace_capture"> {
+  let summary = "Begin trace capture.";
+  let description = [{
+    Begins trace capture. Returns a scalar tensor containing the trace id.
+    Inputs:
+      - `device` TTNN_Device: The device to capture the trace on.
+      - `cq_id` ui32: The command queue to capture the trace with. Must be 0 or 1.
+    Outputs:
+      - `trace_id` AnyRankedTensor: The scalar trace id tensor containing the trace id.
+  }];
+
+  let arguments = (ins TTNN_Device:$device,
+                       DefaultValuedAttr<UI32Attr, "0">:$cq_id);
+
+  let results = (outs AnyRankedTensor:$trace_id);
+
+  let hasVerifier = 1;
+}
+
+def TTNN_EndTraceCaptureOp : TTNN_MemoryEffectOp<"end_trace_capture"> {
+  let summary = "End trace capture.";
+  let description = [{
+    Ends trace capture for the given trace id. Consumes a scalar tensor containing the trace id.
+    Has no output, but will have memory effects on the trace region of the device, modelled by
+    trace resource in the compiler.
+    Inputs:
+      - `device` TTNN_Device: The device to end the trace capture on.
+      - `trace_id` AnyRankedTensor: The trace id tensor to end the capture for. Must be a scalar.
+      - `cq_id` ui32: The command queue to end the capture with. Must be 0 or 1.
+  }];
+
+
+  let arguments = (ins TTNN_Device:$device,
+                       AnyRankedTensor:$trace_id,
+                       DefaultValuedAttr<UI32Attr, "0">:$cq_id);
+
+  let hasVerifier = 1;
+}
+
+def TTNN_ExecuteTraceOp : TTNN_MemoryEffectOp<"execute_trace"> {
+  let summary = "Execute trace.";
+  let description = [{
+    Executes the captured trace. Consumes a scalar tensor containing the trace id.
+    Has no output, but will have read/write memory effects on the cached trace input/output tensors
+    created when capturing the trace.
+    Inputs:
+      - `device` TTNN_Device: The device where the trace was captured.
+      - `trace_id` AnyRankedTensor: The trace id tensor to execute. Must be a scalar.
+      - `cq_id` ui32: The command queue to execute the trace with. Must be 0 or 1.
+      - `blocking` bool: Whether the trace should be executed synchronously.
+  }];
+
+  let arguments = (ins TTNN_Device:$device,
+                       AnyRankedTensor:$trace_id,
+                       DefaultValuedAttr<UI32Attr, "0">:$cq_id,
+                       DefaultValuedAttr<BoolAttr, "false">:$blocking);
+
+  let hasVerifier = 1;
+}
+
+def TTNN_CaptureOrExecuteTraceOp : TTNN_MemoryEffectOp<"capture_or_execute_trace"> {
+  let summary = "Capture or execute trace.";
+  let description = [{
+    Captures or executes the trace. Will have read/write memory effects on the cached trace data.
+    If the trace data exists (meaning the trace was captured previously), it will be executed with
+    the execute_callee function. Otherwise, the trace will be captured with the capture_callee function.
+
+    Inputs:
+      - `device` TTNN_Device: The device where the trace was captured.
+      - `capture_callee` FlatSymbolRefAttr: The symbol of the capture trace function.
+      - `execute_callee` FlatSymbolRefAttr: The symbol of the execute trace function.
+      - `inputs` Variadic<AnyRankedTensor>: The input tensors to the trace function.
+    Outputs:
+      - `results` Variadic<AnyRankedTensor>: The output tensors from the trace function.
+  }];
+
+  let arguments = (ins TTNN_Device:$device,
+                       FlatSymbolRefAttr:$capture_callee,
+                       FlatSymbolRefAttr:$execute_callee,
+                       Variadic<AnyRankedTensor>:$inputs);
+
+  let results = (outs Variadic<AnyRankedTensor>:$results);
+
+  let hasVerifier = 1;
+}
+
 #endif

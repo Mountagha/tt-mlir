@@ -12,6 +12,7 @@
 #include "ttmlir/Dialect/TTNN/IR/TTNNOpsAttrs.h"
 #include "ttmlir/Dialect/TTNN/Types/Types.h"
 #include "ttmlir/Dialect/TTNN/Utils/TransformUtils.h"
+#include "ttmlir/Dialect/TTNN/Utils/Utils.h"
 #include "ttmlir/Utils.h"
 
 #include "mlir/Dialect/Quant/IR/Quant.h"
@@ -1191,40 +1192,67 @@ public:
   matchAndRewrite(TTIROpTy op, OpAdaptor adaptor,
                   ConversionPatternRewriter &rewriter) const override {
     if (!adaptor.getFlattenedCompatInfo()) {
-      return rewriter.notifyMatchFailure(
-          op, "TTNN only supports flattened input tensors for " +
-                  op.getOperationName() +
-                  ". Please "
-                  "run the FlattenSlidingWindow pass before lowering to TTNN.");
+      return op.emitOpError()
+             << "only supports lowering to TTNN for flattened input tensors."
+             << " Please run the FlattenSlidingWindow pass before lowering to "
+                "TTNN";
     }
-    if (adaptor.getPaddingBottom() != adaptor.getPaddingTop()) {
-      return rewriter.notifyMatchFailure(
-          op, op.getOperationName() +
-                  "does not support asymmetric padding for top/bottom.");
+
+    // Extract kernel dimensions.
+    auto kernelPairOrError =
+        ttmlir::utils::getPairOfInteger<int32_t>(adaptor.getKernel());
+    assert(kernelPairOrError && "Expected valid kernel attribute");
+    DenseI32ArrayAttr kernelSizeAttr = rewriter.getDenseI32ArrayAttr(
+        {kernelPairOrError->first, kernelPairOrError->second});
+
+    // Extract stride dimensions.
+    auto stridePairOrError =
+        ttmlir::utils::getPairOfInteger<int32_t>(adaptor.getStride());
+    assert(stridePairOrError && "Expected valid stride attribute");
+    DenseI32ArrayAttr strideAttr = rewriter.getDenseI32ArrayAttr(
+        {stridePairOrError->first, stridePairOrError->second});
+
+    // Extract dilation dimensions.
+    auto dilationPairOrError =
+        ttmlir::utils::getPairOfInteger<int32_t>(adaptor.getDilation());
+    assert(dilationPairOrError && "Expected valid dilation attribute");
+    DenseI32ArrayAttr dilationAttr = rewriter.getDenseI32ArrayAttr(
+        {dilationPairOrError->first, dilationPairOrError->second});
+
+    // TTNN only supports lowering of AvgPool2dOp with dilation of (1, 1).
+    if constexpr (std::is_same_v<TTIROpTy, ttir::AvgPool2dOp>) {
+      if (dilationPairOrError->first != 1 || dilationPairOrError->second != 1) {
+        return op.emitOpError()
+               << "only supports lowering to TTNN for dilation of (1, 1)";
+      }
     }
-    if (adaptor.getPaddingLeft() != adaptor.getPaddingRight()) {
-      return rewriter.notifyMatchFailure(
-          op, op.getOperationName() +
-                  "does not support asymmetric padding for left/right.");
+
+    // Extract padding values.
+    auto paddingQuad =
+        ttmlir::utils::getQuadrupleOfInteger<int32_t>(adaptor.getPadding());
+    assert(paddingQuad && "Expected valid padding attribute");
+    int32_t paddingTop = std::get<0>(*paddingQuad);
+    int32_t paddingLeft = std::get<1>(*paddingQuad);
+    int32_t paddingBottom = std::get<2>(*paddingQuad);
+    int32_t paddingRight = std::get<3>(*paddingQuad);
+
+    // Check for asymmetric padding.
+    if (paddingBottom != paddingTop) {
+      return op.emitOpError() << "only supports lowering to TTNN for symmetric "
+                                 "padding for top/bottom";
     }
+
+    if (paddingLeft != paddingRight) {
+      return op.emitOpError() << "only supports lowering to TTNN for symmetric "
+                                 "padding for left/right";
+    }
+
+    DenseI32ArrayAttr paddingAttr =
+        rewriter.getDenseI32ArrayAttr({paddingTop, paddingLeft});
 
     auto batchSize = adaptor.getFlattenedCompatInfo().getBatchSize();
     constexpr unsigned int CHANNEL_DIM = 3;
     auto channels = op.getInput().getType().getDimSize(CHANNEL_DIM);
-
-    DenseI32ArrayAttr kernelSizeAttr = rewriter.getDenseI32ArrayAttr(
-        {adaptor.getKernelHeight(), adaptor.getKernelWidth()});
-
-    DenseI32ArrayAttr strideAttr = rewriter.getDenseI32ArrayAttr(
-        {adaptor.getStrideHeight(), adaptor.getStrideWidth()});
-
-    assert(adaptor.getPaddingTop() == adaptor.getPaddingBottom());
-    assert(adaptor.getPaddingLeft() == adaptor.getPaddingRight());
-    DenseI32ArrayAttr paddingAttr = rewriter.getDenseI32ArrayAttr(
-        {adaptor.getPaddingTop(), adaptor.getPaddingLeft()});
-
-    DenseI32ArrayAttr dilationAttr = rewriter.getDenseI32ArrayAttr(
-        {adaptor.getDilationHeight(), adaptor.getDilationWidth()});
 
     rewriter.replaceOpWithNewOp<TTNNOpTy>(
         op, this->getTypeConverter()->convertType(op.getResult().getType()),
@@ -1258,42 +1286,6 @@ public:
     rewriter.replaceOpWithNewOp<ttnn::TypecastOp>(
         op, this->getTypeConverter()->convertType(resultType),
         adaptor.getInput(), outputDataType);
-    return success();
-  }
-};
-} // namespace
-
-namespace {
-class SubtractOpConversionPattern
-    : public OpConversionPattern<ttir::SubtractOp> {
-  using OpConversionPattern<ttir::SubtractOp>::OpConversionPattern;
-
-public:
-  LogicalResult
-  matchAndRewrite(ttir::SubtractOp srcOp, ttir::SubtractOp::Adaptor adaptor,
-                  ConversionPatternRewriter &rewriter) const override {
-    RankedTensorType lhsType =
-        mlir::cast<mlir::RankedTensorType>(adaptor.getLhs().getType());
-    RankedTensorType rhsType =
-        mlir::cast<mlir::RankedTensorType>(adaptor.getRhs().getType());
-    Type outputType = this->getTypeConverter()->convertType(srcOp.getType());
-    if (lhsType.getShape() == rhsType.getShape()) {
-      rewriter.replaceOpWithNewOp<ttnn::SubtractOp>(
-          srcOp, outputType, adaptor.getLhs(), adaptor.getRhs());
-
-      // Broadcast for rhs operand require the operation to be commutative to
-      // allow switching the order of operands. To allow this conversion, the
-      // following conversion is applied to SubtractOp: subtractOp(lhs,rhs) ->
-      // addOp(lhs, negOp(rhs))
-    } else {
-      ttnn::NegOp negOp = rewriter.create<ttnn::NegOp>(
-          ttmlir::utils::appendLocationSuffix(srcOp.getLoc(), "_neg"),
-          adaptor.getRhs().getType(), adaptor.getRhs());
-
-      rewriter.replaceOpWithNewOp<ttnn::AddOp>(srcOp, outputType,
-                                               adaptor.getLhs(), negOp);
-    }
-
     return success();
   }
 };
@@ -1447,6 +1439,50 @@ public:
 } // namespace
 
 namespace {
+class RandOpConversionPattern : public OpConversionPattern<ttir::RandOp> {
+public:
+  using OpConversionPattern<ttir::RandOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ttir::RandOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+
+    // Get ttnn::TTNNLayoutAttr of the result type.
+    //
+    ttnn::TTNNLayoutAttr layoutAttr = mlir::cast<ttnn::TTNNLayoutAttr>(
+        op.getResult().getType().getEncoding());
+
+    mlir::tt::ttcore::DataType dtype =
+        mlir::tt::ttcore::elementTypeToDataType(adaptor.getDtype());
+    ttcore::DataTypeAttr dTypeAttr =
+        ttcore::DataTypeAttr::get(rewriter.getContext(), dtype);
+
+    ttnn::Layout ttnnLayoutEnum =
+        layoutAttr.isTiled() ? ttnn::Layout::Tile : ttnn::Layout::RowMajor;
+    ttnn::LayoutAttr tensorLayoutAttr =
+        ttnn::LayoutAttr::get(op.getContext(), ttnnLayoutEnum);
+
+    auto device = ::ttnn::utils::getOrInsertDevice(rewriter, op);
+
+    ttnn::BufferTypeAttr bufferTypeAttr =
+        ttnn::BufferTypeAttr::get(op.getContext(), layoutAttr.getBufferType());
+    ttnn::MemoryConfigAttr memoryConfigAttr =
+        ttnn::MemoryConfigAttr::get(op.getContext(), layoutAttr.getMemLayout(),
+                                    bufferTypeAttr, std::nullopt);
+
+    ttnn::ShapeAttr sizeAttr = ttnn::ShapeAttr::get(
+        rewriter.getContext(), op.getResult().getType().getShape());
+
+    rewriter.replaceOpWithNewOp<ttnn::RandOp>(
+        op, this->getTypeConverter()->convertType(op.getType()), sizeAttr,
+        device, dTypeAttr, tensorLayoutAttr, memoryConfigAttr,
+        adaptor.getLowAttr(), adaptor.getHighAttr(), adaptor.getSeedAttr());
+    return success();
+  }
+};
+} // namespace
+
+namespace {
 class ScatterOpConversionPattern : public OpConversionPattern<ttir::ScatterOp> {
 public:
   using OpConversionPattern<ttir::ScatterOp>::OpConversionPattern;
@@ -1521,6 +1557,57 @@ public:
 };
 } // namespace
 
+// Lowering of TTIR `collective_broadcast` op to a sequence of TTNN
+// `point_to_point` ops.
+//
+// Currently, TTNN does not have a native CollectiveBroadcast op. Instead,
+// we lower the collective broadcast operation into multiple point-to-point
+// transfers based on the replica group configuration.
+//
+// For each replica group, the first device ID is treated as the source,
+// and a PointToPointOp is created for each remaining target in that group.
+// The output of each PointToPointOp overwrites the previous one until the
+// last one is used to replace the original op's result.
+namespace {
+class CollectiveBroadcastOpConversionPattern
+    : public OpConversionPattern<ttir::CollectiveBroadcastOp> {
+public:
+  using OpConversionPattern<ttir::CollectiveBroadcastOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ttir::CollectiveBroadcastOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    ::mlir::RankedTensorType inputType =
+        mlir::cast<::mlir::RankedTensorType>(op.getInput().getType());
+    auto meshDevice = ttcore::lookupDevice(op);
+    llvm::SmallVector<int64_t> meshShape{meshDevice.getMeshShape()};
+
+    Value finalValue;
+    auto replicaGroups = ttmlir::utils::denseElementsAttrTo2D<int64_t>(
+        adaptor.getReplicaGroups());
+
+    // For each replica group, broadcast the first device's tensor to all
+    // others.
+    for (const auto &group : replicaGroups) {
+      auto sourceCoord = rewriter.getDenseI64ArrayAttr(
+          ttmlir::utils::linearIdToCoord(group[0], meshShape));
+      for (const auto &targetId : group) {
+        finalValue = rewriter.create<ttnn::PointToPointOp>(
+            op.getLoc(), inputType, adaptor.getInput(), sourceCoord,
+            rewriter.getDenseI64ArrayAttr(
+                ttmlir::utils::linearIdToCoord(targetId, meshShape)),
+            finalValue);
+      }
+    }
+
+    // Replace the original collective_broadcast op with the final output value.
+    rewriter.replaceOp(op, finalValue);
+
+    return success();
+  }
+};
+} // namespace
+
 // Utility function to get data type for quantized types.
 static ttcore::DataTypeAttr getDataType(mlir::Value val,
                                         ConversionPatternRewriter &rewriter,
@@ -1576,6 +1663,99 @@ public:
 
 } // namespace
 
+// This rewrite pattern lowers a ttir.all_to_all op into a sequence of
+// ttnn.slice, ttnn.point_to_point, and ttnn.concat ops.
+//
+// The goal is to reproduce the behavior expected from StableHLO's all_to_all,
+// which involves redistributing data slices across devices according to the
+// replica group configuration.
+//
+// This lowering performs the following steps:
+// 1. Slice the input tensor along the split_dimension.
+// 2. Use point_to_point ops to exchange the slices between devices according to
+//    the replica group configuration.
+// 3. Concatenate the received slices along the concat_dimension to reconstruct
+// the final output tensor. Please refer to the StableHLO documentation for more
+// details: https://openxla.org/stablehlo/spec#all_to_all
+namespace {
+class AllToAllOpConversionPattern
+    : public OpConversionPattern<ttir::AllToAllOp> {
+public:
+  using OpConversionPattern<ttir::AllToAllOp>::OpConversionPattern;
+
+  LogicalResult
+  matchAndRewrite(ttir::AllToAllOp op, OpAdaptor adaptor,
+                  ConversionPatternRewriter &rewriter) const override {
+    Location loc = op.getLoc();
+    ::mlir::RankedTensorType inputType =
+        mlir::cast<::mlir::RankedTensorType>(op.getInput().getType());
+    auto inputShape = inputType.getShape();
+    int32_t splitDim = op.getSplitDim();
+    auto replicaGroups =
+        ttmlir::utils::denseElementsAttrTo2D<int64_t>(op.getReplicaGroups());
+    int32_t splitCount = static_cast<int32_t>(replicaGroups[0].size());
+
+    // Step 1: Slice the input tensor along the split dimension.
+    // Each slice corresponds to a portion that will be sent to another device.
+    int32_t splitSize = inputShape[splitDim] / splitCount;
+    llvm::SmallVector<int64_t> slicedShape(inputShape.begin(),
+                                           inputShape.end());
+    slicedShape[splitDim] = splitSize;
+    RankedTensorType sliceOutputType =
+        ttnn::utils::RankedTensorTypeFactory::create(inputType, slicedShape);
+    llvm::SmallVector<Value> sliceOpResults;
+    llvm::SmallVector<int32_t> begins(inputShape.size(), 0);
+    llvm::SmallVector<int32_t> ends(inputShape.begin(), inputShape.end());
+    llvm::SmallVector<int32_t> steps(inputShape.size(), 1);
+    for (int32_t sliceIdx = 0; sliceIdx < splitCount; sliceIdx++) {
+      begins[splitDim] = sliceIdx * splitSize;
+      ends[splitDim] = (sliceIdx + 1) * splitSize;
+
+      // Create a slice for this range
+      ttnn::SliceOp sliceOp = rewriter.create<ttnn::SliceOp>(
+          loc, sliceOutputType, op.getInput(), rewriter.getI32ArrayAttr(begins),
+          rewriter.getI32ArrayAttr(ends), rewriter.getI32ArrayAttr(steps));
+      sliceOpResults.push_back(sliceOp.getResult());
+    }
+    // Step 2: Reorganize sliced data using PointToPoint communication.
+    // For each group of devices, perform pairwise sends via PointToPoint ops.
+    // Each sender sends its slices to all devices in the group (including
+    // itself).
+
+    // Buffers to hold the output for each device (initialized as empty).
+    llvm::SmallVector<Value> reorgBuffers(splitCount);
+
+    auto meshShape = ttcore::lookupDevice(op).getMeshShape();
+    // for each group of devices,
+    for (const auto &group : replicaGroups) {
+      // for each device in the group, send its slices to all other devices in
+      // the group
+      for (size_t senderIdx = 0; senderIdx < group.size(); senderIdx++) {
+        auto senderCoord = rewriter.getDenseI64ArrayAttr(
+            ttmlir::utils::linearIdToCoord(group[senderIdx], meshShape));
+        for (size_t receiverIdx = 0; receiverIdx < group.size();
+             receiverIdx++) {
+          auto receiverCoord = rewriter.getDenseI64ArrayAttr(
+              ttmlir::utils::linearIdToCoord(group[receiverIdx], meshShape));
+          reorgBuffers[senderIdx] = rewriter.create<ttnn::PointToPointOp>(
+              loc, sliceOpResults[senderIdx].getType(),
+              sliceOpResults[receiverIdx], senderCoord, receiverCoord,
+              reorgBuffers[senderIdx]);
+        }
+      }
+    }
+
+    // Step 3: Concatenate all received slices along the concat dimension.
+    // This forms the final output tensor after the all-to-all reorganization.
+    rewriter.replaceOpWithNewOp<ttnn::ConcatOp>(op, op.getType(), reorgBuffers,
+                                                op.getConcatDim(),
+                                                /*memory_config=*/nullptr);
+
+    return success();
+  }
+};
+} // namespace
+
 namespace mlir::tt {
 
 void populateTTIRToTTNNPatterns(MLIRContext *ctx, RewritePatternSet &patterns,
@@ -1592,6 +1772,7 @@ void populateTTIRToTTNNPatterns(MLIRContext *ctx, RewritePatternSet &patterns,
            QuantizationOpConversionPattern<ttir::DequantizeUnrolledOp, ttnn::DequantizeOp>,
            RequantizeOpConversionPattern,
            ElementwiseBinaryOpConversionPattern<ttir::AddOp, ttnn::AddOp>,
+           ElementwiseBinaryOpConversionPattern<ttir::SubtractOp, ttnn::SubtractOp>,
            ElementwiseBinaryOpConversionPattern<ttir::MultiplyOp, ttnn::MultiplyOp>,
            ElementwiseBinaryOpConversionPattern<ttir::DivOp, ttnn::DivideOp>,
            ElementwiseBinaryOpConversionPattern<ttir::EqualOp, ttnn::EqualOp>,
@@ -1670,18 +1851,20 @@ void populateTTIRToTTNNPatterns(MLIRContext *ctx, RewritePatternSet &patterns,
            MatmulOpConversionPattern,
            Conv2dOpConversionPattern,
            ConvTranspose2dOpConversionPattern,
-           SubtractOpConversionPattern,
            MeshShardOpConversionPattern,
            AllReduceOpConversionPattern,
            AllGatherOpConversionPattern,
            ReduceScatterOpConversionPattern,
            CollectivePermuteOpConversionPattern,
            ArangeOpConversionPattern,
+           RandOpConversionPattern,
            UpdateCacheOpConversionPattern,
            FillCacheOpConversionPattern,
            ScatterOpConversionPattern,
            PermuteOpConversionPattern,
-           UpsampleOpConversionPattern
+           UpsampleOpConversionPattern,
+           AllToAllOpConversionPattern,
+           CollectiveBroadcastOpConversionPattern
            >(typeConverter, ctx);
   // ANCHOR_END: op_rewriter_pattern_set
   // clang-format on

@@ -480,7 +480,7 @@ class TTIR_ElementwiseTernaryOp<string mnemonic, list<Trait> traits = []> :
     ];
 }
 
-def TTIR_WhereOp: TTIR_ElementwiseTernaryOp<"where", [TTIR_PartiallyBroadcastable]> {
+def TTIR_WhereOp: TTIR_ElementwiseTernaryOp<"where"> {
     let summary = "Elementwise conditional selection operation based on a predicate.";
     let description = [{
       The `where` operation performs element-wise conditional selection based on a predicate.
@@ -1288,7 +1288,7 @@ def TTIR_LeakyReluOp : TTIR_ElementwiseUnaryWithFloatParameterOp<"leaky_relu"> {
 }
 
 class TTIR_ElementwiseBinaryOp<string mnemonic, list<Trait> traits = []> :
-    TTIR_ElementwiseOp<mnemonic, [ThreeOperands, TTIR_ElementwiseBinary] #  traits> {
+    TTIR_ElementwiseOp<mnemonic, [ThreeOperands, TTIR_ElementwiseBinary, TTIR_QuantizableOpInterface] #  traits> {
     let summary = "Base class for elementwise operations with two input tensors.";
     let description = [{
       A base class for elementwise operations that apply a binary function to corresponding
@@ -1723,7 +1723,7 @@ def TTIR_BitwiseXorOp : TTIR_ElementwiseBinaryOp<"bitwise_xor"> {
     let hasCanonicalizer = 1;
 }
 
-def TTIR_MinimumOp :  TTIR_ElementwiseBinaryOp<"minimum", [TTIR_BinaryIdempotence, TTIR_PartiallyBroadcastable]> {
+def TTIR_MinimumOp :  TTIR_ElementwiseBinaryOp<"minimum", [TTIR_BinaryIdempotence]> {
     let summary = "Elementwise minimum operation.";
     let description = [{
       The `minimum` operation computes the elementwise minimum between two tensors.
@@ -1757,7 +1757,7 @@ def TTIR_MinimumOp :  TTIR_ElementwiseBinaryOp<"minimum", [TTIR_BinaryIdempotenc
     }];
 }
 
-def TTIR_SubtractOp : TTIR_ElementwiseBinaryOp<"subtract", [TTIR_PartiallyBroadcastable]> {
+def TTIR_SubtractOp : TTIR_ElementwiseBinaryOp<"subtract"> {
     let summary = "Elementwise subtract operation.";
     let description = [{
       The `subtract` operation performs an elementwise subtraction between two tensors.
@@ -1884,7 +1884,7 @@ def TTIR_Atan2Op :  TTIR_ElementwiseBinaryOp<"atan2"> {
     }];
 }
 
-def TTIR_AddOp : TTIR_ElementwiseBinaryOp<"add", [TTIR_FullyBroadcastable]> {
+def TTIR_AddOp : TTIR_ElementwiseBinaryOp<"add", [DeclareOpInterfaceMethods<TTIR_QuantizableOpInterface, ["isQuantizedRewriteFavorable", "rewriteWithQuantizedInputs"]>]> {
     let summary = "Elementwise addition operation.";
     let description = [{
       The `add` operation performs an elementwise addition between two tensors.
@@ -1916,7 +1916,7 @@ def TTIR_AddOp : TTIR_ElementwiseBinaryOp<"add", [TTIR_FullyBroadcastable]> {
     }];
 }
 
-def TTIR_MultiplyOp : TTIR_ElementwiseBinaryOp<"multiply", [TTIR_PartiallyBroadcastable]> {
+def TTIR_MultiplyOp : TTIR_ElementwiseBinaryOp<"multiply"> {
     let summary = "Elementwise multiplication operation.";
     let description = [{
       The `multiply` operation performs an elementwise multiplication between two tensors.
@@ -2731,8 +2731,8 @@ def TTIR_CumSumOp : TTIR_NamedOp<"cumsum"> {
   }];
 
   let arguments = (ins AnyRankedTensor:$input,
-                       I64Attr:$dim,
-                       AnyRankedTensor:$output);
+                       AnyRankedTensor:$output,
+                       I64Attr:$dim);
 
   let results = (outs AnyRankedTensor:$result);
 
@@ -2920,6 +2920,8 @@ def TTIR_ConcatOp : TTIR_NamedOp<"concat"> {
     let results = (outs AnyRankedTensor:$result);
 
     let hasVerifier = 1;
+
+    let hasFolder = 1;
 }
 
 def TTIR_RepeatOp : TTIR_NamedOp<"repeat"> {
@@ -3357,7 +3359,7 @@ def TTIR_ConvTranspose2dOp : TTIR_NamedOp<"conv_transpose2d"> {
     let hasVerifier = 1;
 }
 
-def TTIR_ConvolutionOp : TTIR_NamedOp<"convolution"> {
+def TTIR_ConvolutionOp : TTIR_NamedOp<"convolution", [DeclareOpInterfaceMethods<TTIR_QuantizableOpInterface, ["isQuantizedRewriteFavorable", "rewriteWithQuantizedInputs"]>]> {
   let summary = "Generalized convolution operation.";
   let description = [{
     This operation is a more flexible form of convolution that can handle arbitrary dimensionality
@@ -3491,7 +3493,7 @@ def TTIR_GatherOp: TTIR_NamedOp<"gather"> {
     let results = (outs AnyRankedTensor:$result);
 }
 
-def TTIR_PoolingOp : TTIR_NamedOp<"pooling", [AttrSizedOperandSegments]> {
+def TTIR_PoolingOp : TTIR_NamedOp<"pooling", [AttrSizedOperandSegments, DeclareOpInterfaceMethods<TTIR_QuantizableOpInterface, ["rewriteWithQuantizedInputs"]>]> {
   let summary = "General pooling operation.";
   let description = [{
     The `pooling` operation is a generalized pooling operation that can implement various pooling methods
@@ -3532,11 +3534,11 @@ def TTIR_PoolingOp : TTIR_NamedOp<"pooling", [AttrSizedOperandSegments]> {
 
     Attributes:
     - `pooling_method` (Enum): The pooling method to use (MAX, AVG, SUM).
-    - `window_dimensions` (Array of Integer): Dimensions of the pooling window.
-    - `window_strides` (Array of Integer): Stride of the pooling window.
-    - `base_dilations` (Array of Integer): Dilation factors for the input.
-    - `window_dilations` (Array of Integer): Dilation factors for the pooling window.
-    - `padding` (Array of Integer): Padding to apply to the input.
+    - `window_dimensions` (Array of Integer): Dimensions of the pooling window. The rank of this array is the same as the rank of the input tensors.
+    - `window_strides` (Array of Integer): Stride of the pooling window. The rank of this array is the same as the rank of the input tensors.
+    - `base_dilations` (Array of Integer): Dilation factors for the input. The rank of this array is the same as the rank of the input tensors.
+    - `window_dilations` (Array of Integer): Dilation factors for the pooling window. The rank of this array is the same as the rank of the input tensors.
+    - `padding` (Array of Integer): Padding to apply to the input. The rank of this array is twice the rank of the input tensors, representing padding for each dimension.
 
     Outputs:
     - `results` (Variadic Tensor): Output tensors after pooling.
@@ -3556,6 +3558,8 @@ def TTIR_PoolingOp : TTIR_NamedOp<"pooling", [AttrSizedOperandSegments]> {
   let results = (outs Variadic<AnyRankedTensor>);
 
   let hasVerifier = 1;
+
+  let hasFolder = 1;
 }
 
 def TTIR_AvgPool2dOp : TTIR_NamedOp<"avg_pool2d"> {
@@ -3576,17 +3580,11 @@ def TTIR_AvgPool2dOp : TTIR_NamedOp<"avg_pool2d"> {
                                         //   [7, 8, 9]]]]
     %output = ttir.empty() : tensor<1x2x2x1xf32>
     %result = ttir.avg_pool2d(%input, %output) {
-        kernel_height = 2 : i32,
-        kernel_width = 2 : i32,
-        stride_height = 1 : i32,
-        stride_width = 1 : i32,
-        dilation_height = 1 : i32,
-        dilation_width = 1 : i32,
-        ceil_mode = false,
-        padding_left = 0 : i32,
-        padding_right = 0 : i32,
-        padding_top = 0 : i32,
-        padding_bottom = 0 : i32
+        kernel = [2, 2],
+        stride = [1, 1],
+        dilation = [1, 1],
+        padding = [0, 0, 0, 0],
+        ceil_mode = false
     } : tensor<1x3x3x1xf32>, tensor<1x2x2x1xf32> -> tensor<1x2x2x1xf32>
     // Result: [[[3, 4],
     //           [6, 7]]]]
@@ -3597,14 +3595,20 @@ def TTIR_AvgPool2dOp : TTIR_NamedOp<"avg_pool2d"> {
     - `input` (Tensor): Input tensor in NHWC format (batch, height, width, channels).
 
     Attributes:
-    - `kernel_height` (Integer): Height of the pooling kernel.
-    - `kernel_width` (Integer): Width of the pooling kernel.
-    - `stride_height` (Integer): Stride along the height dimension.
-    - `stride_width` (Integer): Stride along the width dimension.
-    - `dilation_height` (Integer): Dilation factor for height dimension.
-    - `dilation_width` (Integer): Dilation factor for width dimension.
+    - `kernel` (i32 | array<2xi32>):
+        - i32: Same kernel size for height and width dimensions (kH = kW = value).
+        - array<2xi32>: [kH, kW] where kH is kernel size for height and kW is kernel size for width.
+    - `stride` (i32 | array<2xi32>):
+        - i32: Same stride for height and width dimensions (sH = sW = value).
+        - array<2xi32>: [sH, sW] where sH is stride for height and sW is stride for width.
+    - `dilation` (i32 | array<2xi32>):
+        - i32: Same dilation for height and width dimensions (dH = dW = value).
+        - array<2xi32>: [dH, dW] where dH is dilation for height and dW is dilation for width.
+    - `padding` (i32 | array<2xi32> | array<4xi32>):
+        - i32: Same padding for all sides (pT = pL = pB = pR = value).
+        - array<2xi32>: [pH, pW] where pH is padding for height (top/bottom) and pW is padding for width (left/right).
+        - array<4xi32>: [pT, pL, pB, pR] for top, left, bottom, and right padding respectively.
     - `ceil_mode` (Boolean): When true, uses ceil instead of floor for output shape calculation.
-    - `padding_left`, `padding_right`, `padding_top`, `padding_bottom` (Integer): Padding on each side.
 
     Outputs:
     - `result` (Tensor): Output tensor after average pooling.
@@ -3612,22 +3616,17 @@ def TTIR_AvgPool2dOp : TTIR_NamedOp<"avg_pool2d"> {
 
   let arguments = (ins AnyRankedTensor:$input,
                        AnyRankedTensor:$output,
-                       SI32Attr:$kernel_height,
-                       SI32Attr:$kernel_width,
-                       SI32Attr:$stride_height,
-                       SI32Attr:$stride_width,
-                       SI32Attr:$dilation_height,
-                       SI32Attr:$dilation_width,
+                       AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$kernel,
+                       AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$stride,
+                       AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$dilation,
+                       AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$padding,
                        BoolAttr:$ceil_mode,
-                       SI32Attr:$padding_left,
-                       SI32Attr:$padding_right,
-                       SI32Attr:$padding_top,
-                       SI32Attr:$padding_bottom,
                        DefaultValuedAttr<TTIR_FlattenedCompatInfoAttr, "nullptr">:$flattened_compat_info);
 
   let results = (outs AnyRankedTensor:$result);
 
   let hasVerifier = 1;
+  let hasFolder = 1;
 }
 
 def TTIR_MaxPool2dOp : TTIR_NamedOp<"max_pool2d"> {
@@ -3649,17 +3648,11 @@ def TTIR_MaxPool2dOp : TTIR_NamedOp<"max_pool2d"> {
                                         //   [7, 8, 9]]]]
     %output = ttir.empty() : tensor<1x2x2x1xf32>
     %result = ttir.max_pool2d(%input, %output) {
-        kernel_height = 2 : i32,
-        kernel_width = 2 : i32,
-        stride_height = 1 : i32,
-        stride_width = 1 : i32,
-        dilation_height = 1 : i32,
-        dilation_width = 1 : i32,
-        ceil_mode = false,
-        padding_left = 0 : i32,
-        padding_right = 0 : i32,
-        padding_top = 0 : i32,
-        padding_bottom = 0 : i32
+        kernel = [2, 2],
+        stride = [1, 1],
+        dilation = [1, 1],
+        padding = [0, 0, 0, 0],
+        ceil_mode = false
     } : tensor<1x3x3x1xf32>, tensor<1x2x2x1xf32> -> tensor<1x2x2x1xf32>
     // Result: [[[5, 6],
     //           [8, 9]]]]
@@ -3670,14 +3663,20 @@ def TTIR_MaxPool2dOp : TTIR_NamedOp<"max_pool2d"> {
     - `input` (Tensor): Input tensor in NHWC format (batch, height, width, channels).
 
     Attributes:
-    - `kernel_height` (Integer): Height of the pooling kernel.
-    - `kernel_width` (Integer): Width of the pooling kernel.
-    - `stride_height` (Integer): Stride along the height dimension.
-    - `stride_width` (Integer): Stride along the width dimension.
-    - `dilation_height` (Integer): Dilation factor for height dimension.
-    - `dilation_width` (Integer): Dilation factor for width dimension.
+    - `kernel` (i32 | array<2xi32>):
+        - i32: Same kernel size for height and width dimensions (kH = kW = value).
+        - array<2xi32>: [kH, kW] where kH is kernel size for height and kW is kernel size for width.
+    - `stride` (i32 | array<2xi32>):
+        - i32: Same stride for height and width dimensions (sH = sW = value).
+        - array<2xi32>: [sH, sW] where sH is stride for height and sW is stride for width.
+    - `dilation` (i32 | array<2xi32>):
+        - i32: Same dilation for height and width dimensions (dH = dW = value).
+        - array<2xi32>: [dH, dW] where dH is dilation for height and dW is dilation for width.
+    - `padding` (i32 | array<2xi32> | array<4xi32>):
+        - i32: Same padding for all sides (pT = pL = pB = pR = value).
+        - array<2xi32>: [pH, pW] where pH is padding for height (top/bottom) and pW is padding for width (left/right).
+        - array<4xi32>: [pT, pL, pB, pR] for top, left, bottom, and right padding respectively.
     - `ceil_mode` (Boolean): When true, uses ceil instead of floor for output shape calculation.
-    - `padding_left`, `padding_right`, `padding_top`, `padding_bottom` (Integer): Padding on each side.
 
     Outputs:
     - `result` (Tensor): Output tensor after maximum pooling.
@@ -3685,22 +3684,18 @@ def TTIR_MaxPool2dOp : TTIR_NamedOp<"max_pool2d"> {
 
     let arguments = (ins AnyRankedTensor:$input,
                          AnyRankedTensor:$output,
-                         SI32Attr:$kernel_height,
-                         SI32Attr:$kernel_width,
-                         SI32Attr:$stride_height,
-                         SI32Attr:$stride_width,
-                         SI32Attr:$dilation_height,
-                         SI32Attr:$dilation_width,
+                         AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$kernel,
+                         AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$stride,
+                         AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$dilation,
+                         AnyAttrOf<[I32Attr, DenseI32ArrayAttr]>:$padding,
                          BoolAttr:$ceil_mode,
-                         SI32Attr:$padding_left,
-                         SI32Attr:$padding_right,
-                         SI32Attr:$padding_top,
-                         SI32Attr:$padding_bottom,
                          DefaultValuedAttr<TTIR_FlattenedCompatInfoAttr, "nullptr">:$flattened_compat_info);
 
     let results = (outs AnyRankedTensor:$result);
 
     let hasVerifier = 1;
+
+    let hasFolder = 1;
 }
 
 def TTIR_ReshapeOp: TTIR_NamedOp<"reshape", [TTIR_TensorManipulation]> {
@@ -4706,6 +4701,36 @@ def TTIR_FullOp : TTIR_CreationOp<"full",
   let hasVerifier = 1;
 }
 
+def TTIR_RandOp : TTIR_CreationOp<"rand"> {
+  let summary = "Random number generation operation.";
+  let description = [{
+    Returns a tensor filled with random numbers drawn from a uniform distribution over given interval [low, high) [Default: [0, 1)].
+
+    Example:
+      %0 = "ttir.rand"() <{dtype = bf16, high = 1.000000e+00 : f32, low = 0.000000e+00 : f32, seed = 0 : ui32, size = [32 : i32, 32 : i32]}> : () -> tensor<32x32xbf16>
+
+    Attributes:
+      - `size` (Array of Integer): The shape of the tensor to create.
+      - `dtype` (mlir:Type): Data type of the returned tensor.
+      - `low` (Float): The lower bound of the range (inclusive) [Default: 0.0].
+      - `high` (Float): The upper bound of the range (exclusive) [Default: 1.0].
+      - `seed` (Integer): Value to initialize the random number generator for reproducible results [Default: 0].
+
+    Outputs:
+      - `result` (Tensor): The generated tensor containing the random values.
+  }];
+
+  let arguments = (ins I32ArrayAttr:$size,
+                       TypeAttr:$dtype,
+                       DefaultValuedAttr<F32Attr, "0.0">:$low,
+                       DefaultValuedAttr<F32Attr, "1.0">:$high,
+                       DefaultValuedAttr<UI32Attr, "0">:$seed);
+
+  let results = (outs AnyRankedTensor:$result);
+
+  let hasVerifier = 1;
+}
+
 class TTIR_NamedFullOp<string mnemonic, list<Trait> traits = []> :
   TTIR_CreationOp<mnemonic, traits> {
   let summary = "Base class for tensor creation operations with a specified shape.";
@@ -4929,24 +4954,6 @@ def TTIR_ConstantOp : TTIR_CreationOp<"constant",
     let hasCanonicalizer = 1;
 
     let hasVerifier = 1;
-}
-
-//===----------------------------------------------------------------------===//
-// TTIR region ops (ops that may appear inside of ttir.generic region)
-//    DEPRECATED: Generic region ops are moving to TTIRGenericRegionOps.td
-//===----------------------------------------------------------------------===//
-
-def TTIR_KernelOp : TTIR_NamedOp<"kernel", [AttrSizedOperandSegments]> {
-    let summary = "Kernel call.";
-    let description = [{
-      A generic kernel call operation. This operation is used to pattern match by some consuming backend.
-    }];
-
-    let arguments = (ins FlatSymbolRefAttr:$op,
-                         FlatSymbolRefAttr:$kind,
-                         Variadic<AnyRankedTensorOrMemRef>:$inputs,
-                         Variadic<AnyRankedTensorOrMemRef>:$outputs);
-    let results = (outs Variadic<AnyRankedTensorOrMemRef>:$results);
 }
 
 //===----------------------------------------------------------------------===//
@@ -5221,6 +5228,8 @@ def TTIR_RequantizeOp : TTIR_NamedOp<"requantize"> {
   let results = (outs AnyRankedTensor:$result);
 
   let hasVerifier = 1;
+
+  let hasFolder = 1;
 }
 
 def TTIR_RequantizeUnrolledOp : TTIR_NamedOp<"requantize_unrolled"> {
@@ -5249,5 +5258,67 @@ def TTIR_RequantizeUnrolledOp : TTIR_NamedOp<"requantize_unrolled"> {
 
   let hasVerifier = 1;
 }
+
+def TTIR_AllToAllOp : TTIR_NamedOp<"all_to_all"> {
+    let summary = "All to All operation.";
+    let description = [{
+      The all_to_all operation redistributes slices of a tensor across a cluster of devices. It splits each local tensor along split_dimension, sends
+      the resulting slices to other devices along cluster_axis, and then concatenates the received slices along concat_dimension.
+
+      Example:
+        For a 1x2 mesh and a local input of shape [8, 4]:
+          - split_dimension = 1
+          - concat_dimension = 0
+          - split_count = 2
+          - cluster_axis = 1
+
+        Each device splits its [8, 4] tensor into two [8, 2] slices. After the exchange, each device concatenates the two received [8, 2] slices
+        into a [16, 2] output tensor.
+    }];
+
+    let arguments = (ins AnyRankedTensor:$input,
+                         AnyRankedTensor:$output,
+                         SI32Attr:$split_dim,
+                         SI32Attr:$concat_dim,
+                         SI32Attr:$split_count,
+                         I64ElementsAttr:$replica_groups);
+
+    let results = (outs AnyRankedTensor:$result);
+    let hasVerifier = 1;
+}
+
+def TTIR_CollectiveBroadcastOp : TTIR_NamedOp<"collective_broadcast"> {
+  let summary = "Collective Broadcast op";
+  let description = [{
+    The collective_broadcast operation distributes a tensor from a single source device to all
+    other devices within each replica group. Each replica group defines a subset of devices that
+    participate in the broadcast, and the operation is applied independently within each group.
+
+    By convention, the first device listed in each replica group is treated as the broadcast source.
+    The value of the `input` tensor on that source device is sent to all other devices in the same
+    group. The `input` tensor values on non-source devices are ignored and will be overwritten
+    during the operation.
+
+    Inputs:
+      - input: The tensor to broadcast. Only the value on the first device of each replica group
+              (the source) is used; values on other devices are ignored.
+      - output: An allocated tensor that will be populated with the broadcasted value on all devices.
+      - replica_groups: A list of replica groups. Each group is a list of device IDs, and the first
+                        ID in each group is treated as the broadcast source for that group.
+
+    Result:
+      - result: The output tensor containing the broadcasted value, identical across all devices
+                in the same replica group.
+  }];
+
+  let arguments = (ins AnyRankedTensor:$input,
+                        AnyRankedTensor:$output,
+                        I64ElementsAttr:$replica_groups);
+
+  let results = (outs AnyRankedTensor:$result);
+  let hasVerifier = 1;
+  let hasFolder = 1;
+}
+
 
 #endif

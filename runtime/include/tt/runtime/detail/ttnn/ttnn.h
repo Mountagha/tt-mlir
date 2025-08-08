@@ -16,7 +16,6 @@
 #include "tt-metalium/program_cache.hpp"
 #include "ttnn/device.hpp"
 #include "ttnn/events.hpp"
-#include "ttnn/operations/ccl/all_gather/all_gather.hpp"
 #include "ttnn/operations/conv/conv2d/conv2d.hpp"
 #include "ttnn/operations/copy/typecast/typecast.hpp"
 #include "ttnn/operations/core/core.hpp"
@@ -27,14 +26,14 @@
 #include "ttnn/operations/data_movement/permute/permute.hpp"
 #include "ttnn/operations/data_movement/repeat/repeat.hpp"
 #include "ttnn/operations/data_movement/repeat_interleave/repeat_interleave.hpp"
+#include "ttnn/operations/data_movement/sort/sort.hpp"
 #include "ttnn/operations/data_movement/transpose/transpose.hpp"
 #include "ttnn/operations/eltwise/binary/binary.hpp"
 #include "ttnn/operations/eltwise/binary/binary_composite.hpp"
 #include "ttnn/operations/eltwise/quantization/quantization.hpp"
-#include "ttnn/operations/eltwise/ternary/where.hpp"
+#include "ttnn/operations/eltwise/ternary/where/where.hpp"
 #include "ttnn/operations/eltwise/unary/unary.hpp"
 #include "ttnn/operations/embedding/embedding.hpp"
-#include "ttnn/operations/experimental/reduction/sort/sort.hpp"
 #include "ttnn/operations/kv_cache/kv_cache.hpp"
 #include "ttnn/operations/matmul/matmul.hpp"
 #include "ttnn/operations/moreh/moreh_cumsum/moreh_cumsum.hpp"
@@ -42,6 +41,7 @@
 #include "ttnn/operations/normalization/softmax/softmax.hpp"
 #include "ttnn/operations/pool/generic/generic_pools.hpp"
 #include "ttnn/operations/pool/upsample/upsample.hpp"
+#include "ttnn/operations/rand/rand.hpp"
 #include "ttnn/operations/reduction/argmax/argmax.hpp"
 #include "ttnn/operations/reduction/generic/generic_reductions.hpp"
 #include "ttnn/operations/reduction/prod/prod.hpp"
@@ -168,16 +168,19 @@ size_t getNumDramChannels(Device meshDevice);
 size_t getDramSizePerChannel(Device meshDevice);
 size_t getL1SizePerCore(Device meshDevice);
 
-bool releaseTrace(Device meshDevice, std::uint64_t binaryId, size_t programId);
+void releaseTrace(Device meshDevice, std::uint64_t binaryId,
+                  size_t mainProgramId);
 
 void deallocateBuffers(Device device);
 
 void dumpMemoryReport(Device device);
 
-void dumpDeviceProfileResults(Device device);
+void readDeviceProfilerResults(Device device);
 
 std::unordered_map<tt::runtime::MemoryBufferType, tt::runtime::MemoryView>
 getMemoryView(Device device);
+
+void setFabricConfig(FabricConfig config);
 
 void wait(Event event);
 

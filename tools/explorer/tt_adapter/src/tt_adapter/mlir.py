@@ -7,6 +7,7 @@ import re
 from pathlib import Path
 from collections import defaultdict
 from model_explorer import graph_builder, node_data_builder
+from datetime import datetime, timezone
 
 from ttmlir.dialects import ttcore, ttnn, ttir
 from ttmlir import ir, util
@@ -236,59 +237,6 @@ def parse_tt_system_desc(attr):
                 ),
             )
         )
-        result.append(
-            graph_builder.KeyValue(
-                key=f"chip#{i}-dram-core-coords",
-                value=", ".join(
-                    [
-                        "x".join(map(str, (coord.y, coord.x)))
-                        for coord in chip_desc.chip_physical_helper_cores.dram
-                    ]
-                ),
-            )
-        )
-        result.append(
-            graph_builder.KeyValue(
-                key=f"chip#{i}-eth-core-coords",
-                value=", ".join(
-                    [
-                        "x".join(map(str, (coord.y, coord.x)))
-                        for coord in chip_desc.chip_physical_helper_cores.eth
-                    ]
-                ),
-            )
-        )
-        result.append(
-            graph_builder.KeyValue(
-                key=f"chip#{i}-eth-inactive-core-coords",
-                value=", ".join(
-                    [
-                        "x".join(map(str, (coord.y, coord.x)))
-                        for coord in chip_desc.chip_physical_helper_cores.eth_inactive
-                    ]
-                ),
-            )
-        )
-        result.append(
-            graph_builder.KeyValue(
-                key=f"chip#{i}-worker-core-coords",
-                value=", ".join(
-                    [
-                        "x".join(
-                            map(
-                                str,
-                                (
-                                    chip_desc.coord_translation_offsets[0] + y,
-                                    chip_desc.coord_translation_offsets[1] + x,
-                                ),
-                            )
-                        )
-                        for y in range(chip_desc.grid[0])
-                        for x in range(chip_desc.grid[1])
-                    ]
-                ),
-            )
-        )
     return result
 
 
@@ -496,18 +444,6 @@ def parse_ttnn_ttnn_layout(attr):
 def parse_conv2d_config(attr):
     conv2d_config = ttnn.ir.Conv2dConfigAttr.maybe_downcast(attr)
     result = []
-    result.append(
-        utils.make_editable_kv(
-            graph_builder.KeyValue(
-                key="dtype",
-                value=str(ttcore.DataType(conv2d_config.dtype_as_int)),
-            ),
-            editable={
-                "input_type": "value_list",
-                "options": [str(o) for o in ttcore.DataType],
-            },
-        )
-    )
     result.append(
         utils.make_editable_kv(
             graph_builder.KeyValue(
@@ -849,14 +785,21 @@ FILTERED_OPS = [
 
 
 def build_graph(
-    module_path: str,
+    model_path: str,
     module,
+    model_runner,
     perf_trace=None,
     memory_trace=None,
     golden_results=None,
     cpp_code=None,
 ):
-    graph_id = Path(module_path).name
+    graph_id = Path(model_path).name
+
+    if model_runner.get_last_run(model_path):
+        graph_id = (
+            f'{graph_id} - Execution {datetime.now(timezone.utc).strftime("%H:%M:%S")}'
+        )
+
     output_connections = defaultdict(int)
     graph = graph_builder.Graph(id=graph_id)
 

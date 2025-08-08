@@ -1,6 +1,6 @@
-// RUN: ttmlir-opt --ttir-to-ttnn-backend-pipeline="enable-repeat-folding-workaround-pass=false system-desc-path=%system_desc_path%" %s > %t.mlir
+// RUN: ttmlir-opt --ttir-to-ttnn-backend-pipeline="enable-repeat-folding-workaround-pass=false system-desc-path=%system_desc_path%" -o %t.mlir %s
 // RUN: FileCheck %s --input-file=%t.mlir
-// RUN: ttmlir-translate --ttnn-to-flatbuffer %t.mlir > %t.ttnn
+// RUN: ttmlir-translate --ttnn-to-flatbuffer -o %t.ttnn %t.mlir
 
 func.func @main0(%arg0: tensor<1x16x32xf32>, %arg1: tensor<1x1x32xf32>) -> tensor<1x16x32xf32> {
   // CHECK-NOT: ttnn.repeat
@@ -16,9 +16,9 @@ func.func @main1(%arg0: tensor<128xf32>, %arg1: tensor<128xf32>) -> tensor<784x1
   // CHECK: %{{[0-9]+}} = "ttnn.reshape"
   // CHECK-NOT: "ttnn.repeat"
   // CHECK: %{{[0-9]+}} = "ttnn.reshape"
+  // CHECK: %{{[0-9]+}} = "ttnn.add"
   // CHECK: %{{[0-9]+}} = "ttnn.repeat"
   // CHECK-SAME: repeat_dims = #ttnn.shape<784x1>
-  // CHECK: %{{[0-9]+}} = "ttnn.add"
   %0 = ttir.empty() : tensor<1x128xf32>
   %1 = "ttir.reshape"(%arg0, %0) <{shape = [1 : i32, 128 : i32]}> : (tensor<128xf32>, tensor<1x128xf32>) -> tensor<1x128xf32>
   %2 = ttir.empty() : tensor<784x128xf32>

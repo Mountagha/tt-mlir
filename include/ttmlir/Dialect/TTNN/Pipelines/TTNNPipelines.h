@@ -132,7 +132,7 @@ struct TTIRToTTNNBackendPipelineOptions
   Option<bool> memoryLayoutAnalysisEnabled{
       *this, OptionNames::memoryLayoutAnalysisEnabled,
       llvm::cl::desc("Enable memory layout optimization."),
-      llvm::cl::init(true)};
+      llvm::cl::init(false)};
 
   // If this option is true, insert memory reconfiguration ops.
   //
@@ -218,9 +218,19 @@ struct TTIRToTTNNBackendPipelineOptions
       *this, "enable-erase-inverse-ops-pass",
       llvm::cl::desc("Enable erase inverse ops pass."), llvm::cl::init(true)};
 
+  Option<bool> enableQuantDequantConversion{
+      *this, "enable-quant-dequant-conversion-pass",
+      llvm::cl::desc("Enable quant-dequant conversion pass."),
+      llvm::cl::init(true)};
+
   Option<bool> enableFusing{*this, "enable-fusing-pass",
                             llvm::cl::desc("Enable fusing pass."),
-                            llvm::cl::init(false)};
+                            llvm::cl::init(true)};
+
+  Option<bool> enableFusingConv2dWithMultiplyPattern{
+      *this, "enable-fusing-conv2d-with-multiply-pattern",
+      llvm::cl::desc("Enable Conv2dWithMultiply pattern in the fusing pass."),
+      llvm::cl::init(false)};
 
   Option<ttcore::TTArgumentTypeMap, ttcore::ArgumentTypeMapParser>
       argumentTypeMap{

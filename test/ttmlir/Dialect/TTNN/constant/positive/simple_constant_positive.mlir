@@ -1,4 +1,5 @@
-// RUN: ttmlir-opt --ttir-to-ttnn-backend-pipeline %s | FileCheck %s
+// RUN: ttmlir-opt --ttir-to-ttnn-backend-pipeline -o %t %s
+// RUN: FileCheck %s --input-file=%t
 module attributes {} {
   func.func @test_empty_int8() -> tensor<64x128xi8> {
     %0 = "ttir.constant"() <{value = dense<0> : tensor<64x128xi8>}> : () -> tensor<64x128xi8>
@@ -20,8 +21,6 @@ module attributes {} {
     %0 = "ttir.constant"() <{value = dense<0> : tensor<64x128xi32>}> : () -> tensor<64x128xi32>
     // CHECK: %{{[0-9]+}} = "ttnn.full"
     // CHECK-SAME: fill_value = 0 : i32
-    // CHECK-SAME: -> tensor<64x128xf32
-    // CHECK: %{{[0-9]+}} = "ttnn.typecast"
     // CHECK-SAME: -> tensor<64x128xsi32
     return %0 : tensor<64x128xi32>
   }
@@ -69,8 +68,6 @@ module attributes {} {
   func.func @test_full_int() -> tensor<64x128xi32> {
     // CHECK: %{{[0-9]+}} = "ttnn.full"
     // CHECK-SAME: fill_value = 1 : i32
-    // CHECK-SAME: -> tensor<64x128xf32
-    // CHECK: %{{[0-9]+}} = "ttnn.typecast"
     // CHECK-SAME: -> tensor<64x128xsi32
     %0 = "ttir.constant"() <{value = dense<1> : tensor<64x128xi32>}> : () -> tensor<64x128xi32>
     return %0 : tensor<64x128xi32>

@@ -12,11 +12,12 @@ add_mlir_dialect_library(MLIRTTIRTransforms
         GenericRegionsToFuncs.cpp
         InsertDstRegisterAccess.cpp
         GenericApplyInterchange.cpp
-        OptimizeTensorLayout.cpp
+        GenericTileComputeLoops.cpp
         HoistCPUOps.cpp
         ElementTypeNormalization.cpp
         LowerToLayout.cpp
         Quantization.cpp
+        QuantDequantConversion.cpp
         Transforms.cpp
         TTIRFusing.cpp
 

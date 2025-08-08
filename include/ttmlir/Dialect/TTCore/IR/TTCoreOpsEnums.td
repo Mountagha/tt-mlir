@@ -106,16 +106,16 @@ def TTCore_OOBVal : I32EnumAttr<"OOBVal", "TT OOBVal",
   let cppNamespace = "::mlir::tt::ttcore";
 }
 
-def TTCore_ChipCapabilityPCIE : I32BitEnumAttrCaseBit<"PCIE", 0, "pcie">;
-def TTCore_ChipCapabilityHostMMIO : I32BitEnumAttrCaseBit<"HostMMIO", 1, "host_mmio">;
+def TTCore_ChipCapabilityHostMMIO : I32BitEnumAttrCaseBit<"HostMMIO", 0, "host_mmio">;
 
 def TTCore_ChipCapability : I32BitEnumAttr<"ChipCapability", "TT Chip Capabilities",
                            [
-                            TTCore_ChipCapabilityPCIE,
                             TTCore_ChipCapabilityHostMMIO,
                            ]> {
   let genSpecializedAttr = 1;
   let cppNamespace = "::mlir::tt::ttcore";
+  let separator = "|";
+  let printBitEnumPrimaryGroups = 1;
 }
 
 def TTCore_ReduceType_Sum  : I32EnumAttrCase<"Sum",  0, "sum">;
@@ -194,6 +194,18 @@ def TTCore_ArgumentType : I32EnumAttr<"ArgumentType", "Argument Type",
   let cppNamespace = "::mlir::tt::ttcore";
   let stringToSymbolFnName = "ArgumentTypeStringToEnum";
   let symbolToStringFnName = "ArgumentTypeEnumToString";
+}
+
+def TTCore_ShardStatus_Presharded: I32EnumAttrCase<"Presharded", 0, "presharded">;
+def TTCore_ShardStatus_Unsharded: I32EnumAttrCase<"Unsharded", 1, "unsharded">;
+
+def TTCore_ShardStatus : I32EnumAttr<"ShardStatus", "Shard Status Type",
+                            [
+                              TTCore_ShardStatus_Presharded,
+                              TTCore_ShardStatus_Unsharded,
+                            ]> {
+  let genSpecializedAttr = 0;
+  let cppNamespace = "::mlir::tt::ttcore";
 }
 
 #endif // TTMLIR_DIALECT_TTCORE_IR_TTCOREOPSENUMS_TD

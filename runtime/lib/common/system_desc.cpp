@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: (c) 2024 Tenstorrent AI ULC
 //
 // SPDX-License-Identifier: Apache-2.0
-#include "tt/runtime/detail/common.h"
-#include "tt/runtime/detail/logger.h"
+#include "tt/runtime/detail/common/common.h"
+#include "tt/runtime/detail/common/logger.h"
 #include "tt/runtime/runtime.h"
 #include "tt/runtime/types.h"
 #include "tt/runtime/utils.h"
@@ -15,7 +15,6 @@
 #include <vector>
 
 #define FMT_HEADER_ONLY
-#include "eth_l1_address_map.h"
 #include "hostdevcommon/common_values.hpp"
 #include "tt-metalium/allocator.hpp"
 #include "tt-metalium/hal.hpp"
@@ -99,46 +98,6 @@ getAllDeviceConnections(const std::vector<::tt::tt_metal::IDevice *> &devices) {
   return allConnections;
 }
 
-static void sort(std::vector<::tt::target::Dim2d> &vec) {
-  std::sort(vec.begin(), vec.end(),
-            [](const ::tt::target::Dim2d &a, const ::tt::target::Dim2d &b) {
-              return a.y() < b.y() || (a.y() == b.y() && a.x() < b.x());
-            });
-}
-
-// Gather physical helper cores by type for the device using metal device APIs
-static flatbuffers::Offset<::tt::target::ChipPhysicalHelperCores>
-createChipPhysicalHelperCores(const ::tt::tt_metal::IDevice *device,
-                              flatbuffers::FlatBufferBuilder &fbb) {
-
-  std::vector<::tt::target::Dim2d> dramCores, ethCores, ethInactiveCores;
-
-  for (int dramChannel = 0; dramChannel < device->num_dram_channels();
-       ++dramChannel) {
-    CoreCoord logical = device->logical_core_from_dram_channel(dramChannel);
-    dramCores.emplace_back(::tt::target::Dim2d(logical.y, logical.x));
-  }
-
-  for (const CoreCoord &logical : device->get_active_ethernet_cores(true)) {
-    CoreCoord physical = device->ethernet_core_from_logical_core(logical);
-    ethCores.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
-  }
-
-  for (const CoreCoord &logical : device->get_inactive_ethernet_cores()) {
-    CoreCoord physical = device->ethernet_core_from_logical_core(logical);
-    ethInactiveCores.emplace_back(::tt::target::Dim2d(physical.y, physical.x));
-  }
-
-  sort(dramCores);
-  sort(ethCores);
-  sort(ethInactiveCores);
-
-  return ::tt::target::CreateChipPhysicalHelperCores(
-      fbb, fbb.CreateVectorOfStructs(dramCores),
-      fbb.CreateVectorOfStructs(ethCores),
-      fbb.CreateVectorOfStructs(ethInactiveCores));
-}
-
 ::tt::target::Dim2d
 getCoordinateTranslationOffsets(const ::tt::tt_metal::IDevice *device) {
   const CoreCoord workerNWCorner =
@@ -216,9 +175,6 @@ static std::unique_ptr<::tt::runtime::SystemDesc> getCurrentSystemDescImpl(
     // worker cores
     auto coordTranslationOffsets = getCoordinateTranslationOffsets(device);
 
-    // Extract physical core coordinates for dram and eth cores
-    auto chipPhysicalHelperCores = createChipPhysicalHelperCores(device, fbb);
-
     // The following is temporary place-holder value to be replaced by API
     // value.
     std::vector<::tt::target::DataType> supportedDataTypesVector = {
@@ -250,17 +206,16 @@ static std::unique_ptr<::tt::runtime::SystemDesc> getCurrentSystemDescImpl(
         &coordTranslationOffsets, device->l1_size_per_core(),
         device->num_dram_channels(), device->dram_size_per_channel(),
         l1Alignment, pcieAlignment, dramAlignment, l1UnreservedBase,
-        ::eth_l1_mem::address_map::ERISC_L1_UNRESERVED_BASE, dramUnreservedBase,
-        dramUnreservedEnd, chipPhysicalHelperCores, supportedDataTypes,
-        supportedTileSizes, kDstRegisterSizeTiles, NUM_CIRCULAR_BUFFERS,
-        kNumComputeThreads, kNumDatamovementThreads));
+        ::tt::tt_metal::hal::get_erisc_l1_unreserved_base(), dramUnreservedBase,
+        dramUnreservedEnd, supportedDataTypes, supportedTileSizes,
+        kDstRegisterSizeTiles, NUM_CIRCULAR_BUFFERS, kNumComputeThreads,
+        kNumDatamovementThreads));
     chipDescIndices.push_back(chipDescIndices.size());
     // Derive chip capability
     ::tt::target::ChipCapability chipCapability =
         ::tt::target::ChipCapability::NONE;
     if (device->is_mmio_capable()) {
-      chipCapability = chipCapability | ::tt::target::ChipCapability::PCIE |
-                       ::tt::target::ChipCapability::HostMMIO;
+      chipCapability = chipCapability | ::tt::target::ChipCapability::HostMMIO;
     }
     chipCapabilities.push_back(chipCapability);
   }

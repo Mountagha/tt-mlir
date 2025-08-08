@@ -19,6 +19,7 @@
 #include "operations/data_movement/repeat/repeat.hpp"
 #include "operations/data_movement/repeat_interleave/repeat_interleave.hpp"
 #include "operations/data_movement/slice/slice.hpp"
+#include "operations/data_movement/sort/sort.hpp"
 #include "operations/data_movement/transpose/transpose.hpp"
 #include "operations/eltwise/binary/binary.hpp"
 #include "operations/eltwise/binary/binary_composite.hpp"
@@ -26,13 +27,13 @@
 #include "operations/eltwise/unary/unary_composite.hpp"
 #include "operations/embedding/embedding.hpp"
 #include "operations/embedding_backward/embedding_backward.hpp"
-#include "operations/experimental/reduction/sort/sort.hpp"
 #include "operations/matmul/matmul.hpp"
 #include "operations/moreh/moreh_cumsum/moreh_cumsum.hpp"
 #include "operations/normalization/batch_norm/batch_norm.hpp"
 #include "operations/normalization/softmax/softmax.hpp"
 #include "operations/pool/generic/generic_pools.hpp"
 #include "operations/pool/upsample/upsample.hpp"
+#include "operations/rand/rand.hpp"
 #include "operations/reduction/argmax/argmax.hpp"
 #include "operations/reduction/generic/generic_reductions.hpp"
 #include "operations/reduction/prod/prod.hpp"
@@ -51,6 +52,11 @@
 #include <iostream>
 #include <limits>
 #include <vector>
+
+template <typename... T>
+std::vector<ttnn::Tensor> util_create_vec(T &&...t) {
+  return std::vector<ttnn::Tensor>{std::forward<T>(t)...};
+}
 
 namespace ttnn {
 

@@ -1,9 +1,9 @@
 // RUN: ttmlir-opt --ttir-to-ttnn-backend-pipeline="system-desc-path=%system_desc_path% enable-trace=true" -o mnist_linear_out.mlir %s
 // RUN: FileCheck %s --input-file=mnist_linear_out.mlir
-// RUN: ttmlir-translate --ttnn-to-flatbuffer mnist_linear_out.mlir > %t.ttnn
+// RUN: ttmlir-translate --ttnn-to-flatbuffer -o %t.ttnn mnist_linear_out.mlir
 module @MNISTLinear attributes {} {
   func.func @forward(%arg0: tensor<1x784xbf16>, %arg1: tensor<784x256xbf16>, %arg2: tensor<256xbf16>, %arg3: tensor<256x10xbf16>, %arg4: tensor<10xbf16>) -> tensor<1x10xbf16> {
-    // CHECK: ttnn.trace
+    // CHECK: ttnn.capture_or_execute_trace
     %0 = ttir.empty() : tensor<1x256xbf16>
     %1 = "ttir.matmul"(%arg0, %arg1, %0) : (tensor<1x784xbf16>, tensor<784x256xbf16>, tensor<1x256xbf16>) -> tensor<1x256xbf16>
     %2 = ttir.empty() : tensor<1x256xbf16>

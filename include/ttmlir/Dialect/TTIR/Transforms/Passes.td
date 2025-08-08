@@ -7,6 +7,19 @@
 
 include "mlir/Pass/PassBase.td"
 
+def TTIRGenericTileComputeLoops : Pass<"ttir-generic-tile-compute-loops", "::mlir::ModuleOp"> {
+  let summary = "";
+  let description = [{
+    This pass tiles affine compute loops according to the generic's subblock factors.
+  }];
+
+  list<Option> options = [
+    Option<"maxDstRegisterSizeTiles", "max-dst-register-size-tiles", "unsigned", "0", "Override the max dst size tiles or 0 if unset.">,
+  ];
+
+  let dependentDialects = ["mlir::tt::ttir::TTIRDialect"];
+}
+
 def TTIRInsertDstRegisterAccess : Pass<"ttir-insert-dst-register-access", "::mlir::ModuleOp"> {
   let summary = "Insert dst register access.";
   let description = [{
@@ -107,18 +120,6 @@ def TTIRGenericLinearizeMemref: Pass<"ttir-generic-linearize-memref", "::mlir::M
       }
     ```
   }];
-}
-
-def TTIROptimizeTensorLayout: Pass<"ttir-optimize-tensor-layout", "::mlir::ModuleOp"> {
-  let summary = "";
-  let description = [{
-    Analyze the graph and select optimal layouts, insert to_layout where needed.
-  }];
-
-  list<Option> options = [
-        ListOption<"overrideDeviceShape", "override-device-shape", "int64_t", "Override the device shape.">,
-        Option<"maxDstRegisterSizeTiles", "max-dst-register-size-tiles", "unsigned", "0", "Override the max dst size tiles or 0 if unset.">,
-    ];
 }
 
 def TTIRGenericGenerateDatamovement: Pass<"ttir-generic-generate-datamovement", "::mlir::ModuleOp"> {
@@ -595,10 +596,30 @@ def TTIRQuantDataTypeConversionPass : Pass<"ttir-quant-data-type-conversion", ":
   ];
 }
 
+def TTIRQuantDequantConversion : Pass<"ttir-quant-dequant-conversion", "::mlir::ModuleOp">
+{
+  let summary = "Convert floating-point ops surrounded by quantize/dequantize into TTIR quantized operations.";
+  let description = [{
+    This pass detects and fuses the (x -> dequantize → floating-point operation)
+    pattern into a single TTIR operation that consumes quantized inputs and produces
+    quantized outputs. If the target operation implements the QuantizableOpInterface,
+    it is rewritten directly into its quantized form. Otherwise, a fallback transformation
+    inserts dequantize and quantize nodes around the original op to maintain correctness.
+  }];
+  let dependentDialects = ["mlir::tt::ttir::TTIRDialect", "mlir::quant::QuantDialect"];
+}
+
 def TTIRFusing: Pass<"ttir-fusing", "::mlir::ModuleOp">
 {
   let summary = "TTIR fusing pass.";
   let description = "This pass tries to fuse operations together with goal to reduce the number of operations in the graph.";
+
+  let options = [
+      Option<"conv2dWithMultiplyEnabled",
+             "ttnn-enable-conv2d-with-multiply-pattern",
+             "bool", /*default=*/"false",
+             "Controls if we should enable the Conv2dWithMultiply pattern">,
+  ];
 }
 
 #endif

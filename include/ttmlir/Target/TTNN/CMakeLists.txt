@@ -17,9 +17,11 @@ set(TTNN_OPERATIONS_FBS_GEN_SOURCES
   # ANCHOR: adding_an_op_matmul_fbs_cmake
   operations/matmul.fbs
   # ANCHOR_END: adding_an_op_matmul_fbs_cmake
+  operations/mlir_native.fbs
   operations/moreh_cumsum.fbs
   operations/normalization.fbs
   operations/pool.fbs
+  operations/rand.fbs
   operations/reduction.fbs
   operations/trace.fbs
 )

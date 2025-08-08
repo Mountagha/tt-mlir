@@ -39,14 +39,17 @@ void createTTNNPipelineTTIRPasses(
   pm.addPass(
       mlir::tt::ttcore::createTTPopulateArgumentTypes(options.argumentTypeMap));
   pm.addPass(mlir::createCanonicalizerPass());
+  ttir::TTIRFusingOptions fusingOptions{
+      options.enableFusingConv2dWithMultiplyPattern};
   if (options.enableFusing) {
-    pm.addPass(mlir::tt::ttir::createTTIRFusing());
+    pm.addPass(mlir::tt::ttir::createTTIRFusing(fusingOptions));
+  }
+  if (options.enableQuantDequantConversion) {
+    pm.addPass(mlir::tt::ttir::createTTIRQuantDequantConversion());
   }
   pm.addPass(mlir::tt::createTTIRToTTIRDecompositionPass());
-  // Fuse after TTIR -> TTIR decomposition to enable fusing of ops that are
-  // decomposed.
   if (options.enableFusing) {
-    pm.addPass(mlir::tt::ttir::createTTIRFusing());
+    pm.addPass(mlir::tt::ttir::createTTIRFusing(fusingOptions));
   }
   pm.addPass(mlir::createCanonicalizerPass());
 
@@ -65,9 +68,8 @@ void createTTNNPipelineTTIRPasses(
     pm.addPass(mlir::tt::ttir::createTTIRExplicateTMs());
     pm.addPass(mlir::tt::ttir::createTTIREraseInverseOps());
   }
-  // Fuse TTIR ops after rest of TTIR pipeline.
   if (options.enableFusing) {
-    pm.addPass(mlir::tt::ttir::createTTIRFusing());
+    pm.addPass(mlir::tt::ttir::createTTIRFusing(fusingOptions));
   }
 }
 

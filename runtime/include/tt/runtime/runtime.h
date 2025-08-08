@@ -23,7 +23,7 @@ SystemDesc getCurrentSystemDesc(
 namespace detail {
 void deallocateBuffers(Device device);
 void dumpMemoryReport(Device device);
-void dumpDeviceProfileResults(Device device);
+void readDeviceProfilerResults(Device device);
 
 /*
 This function get the memory view per device
@@ -161,7 +161,10 @@ size_t getNumDramChannels(Device meshDevice);
 size_t getDramSizePerChannel(Device meshDevice);
 size_t getL1SizePerCore(Device meshDevice);
 
-bool releaseTrace(Device meshDevice, std::uint64_t binaryId, size_t programId);
+void releaseTrace(Device meshDevice, std::uint64_t binaryId,
+                  size_t mainProgramId);
+
+void setFabricConfig(FabricConfig config);
 
 void wait(Event event);
 

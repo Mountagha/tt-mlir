@@ -54,16 +54,6 @@ def TTIROpInterface : OpInterface<"TTIROp"> {
   ];
 }
 
-def TTIR_PartiallyBroadcastable : OpInterface<"PartiallyBroadcastable"> {
-  // Supports implicit broadcast for first operand only.
-  let cppNamespace = "::mlir::tt::ttir";
-}
-
-def TTIR_FullyBroadcastable : OpInterface<"FullyBroadcastable"> {
-  // Supports implicit broadcast for all the operands.
-  let cppNamespace = "::mlir::tt::ttir";
-}
-
 def TTIR_GenericParent : OpInterface<"GenericParent"> {
   let cppNamespace = "::mlir::tt::ttir";
 
@@ -134,6 +124,35 @@ def TTIR_OperandLoadRegisterOpInterface : OpInterface<"OperandLoadRegisterOpInte
       /*args=*/(ins),
       /*methodBody=*/"",
       /*defaultImplementation=*/"return ::mlir::SmallVector<int64_t>{};"
+    >,
+  ];
+}
+
+def TTIR_QuantizableOpInterface : OpInterface<"QuantizableOpInterface"> {
+  let cppNamespace = "::mlir::tt::ttir";
+  let methods = [
+    InterfaceMethod<
+      /*desc=*/[{
+        This interface method performs the rewrite of the op using quantized operands.
+        The method returns a nullptr if the op cannot be rewritten in quantized form given the operands.
+      }],
+      /*retTy=*/"mlir::Operation *",
+      /*methodName=*/"rewriteWithQuantizedInputs",
+      /*args=*/(ins "PatternRewriter&":$rewriter, "ArrayRef<mlir::Value>":$sourceOperands, "mlir::ValueRange":$outputOperands),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/"return nullptr;"
+    >,
+    InterfaceMethod<
+      /*desc=*/[{
+        This interface method denotes that an op can be rewritten to accept quantized inputs.
+        The quant-dequant pattern pass uses this function to verify basic legality; that the op can be rewritten
+        in quantized form given the operands passed in as parameters.
+      }],
+      /*retTy=*/"bool",
+      /*methodName=*/"isQuantizedRewriteFavorable",
+      /*args=*/(ins "ArrayRef<mlir::Value>":$sourceOperands),
+      /*methodBody=*/"",
+      /*defaultImplementation=*/"return true;"
     >,
   ];
 }

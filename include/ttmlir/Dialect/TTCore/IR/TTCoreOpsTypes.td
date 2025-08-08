@@ -96,17 +96,6 @@ def TTCore_TileSizeAttr : TTCore_Attr<"TileSize", "tile_size"> {
   let assemblyFormat = "custom<VargDimensionList>($y, $x)";
 }
 
-
-def TTCore_ChipPhysicalHelperCoresAttr : TTCore_Attr<"ChipPhysicalHelperCores", "chip_physical_helper_cores"> {
-  let summary = "TT chip_physical_helper_cores attribute";
-  let description = [{
-    TT chip_physical_helper_cores attribute containing arrays of physical helper cores by core type in order of logical cores.
-  }];
-
-  let parameters = (ins ArrayRefParameter<"CoreCoordAttr">:$dram, OptionalArrayRefParameter<"CoreCoordAttr">:$eth, OptionalArrayRefParameter<"CoreCoordAttr">:$eth_inactive);
-  let assemblyFormat = "`{` `dram` `=` `[` $dram `]` (`eth` `=` `[` $eth^ `]`)? (`eth_inactive` `=` `[` $eth_inactive^ `]`)? `}`";
-}
-
 def TTCore_ChipDescAttr : TTCore_Attr<"ChipDesc", "chip_desc"> {
   let summary = "TT chip_desc attribute";
   let description = [{
@@ -126,7 +115,6 @@ def TTCore_ChipDescAttr : TTCore_Attr<"ChipDesc", "chip_desc"> {
                     "unsigned":$eriscL1UnreservedBase,
                     "unsigned":$dramUnreservedBase,
                     "unsigned":$dramUnreservedEnd,
-                    "ChipPhysicalHelperCoresAttr":$chipPhysicalHelperCores,
                     ArrayRefParameter<"DataTypeAttr">:$supportedDataTypes,
                     ArrayRefParameter<"TileSizeAttr">:$supportedTileSizes,
                     "unsigned":$dstRegisterSizeTiles,
@@ -146,7 +134,6 @@ def TTCore_ChipDescAttr : TTCore_Attr<"ChipDesc", "chip_desc"> {
                              `erisc_l1_unreserved_base` `=` $eriscL1UnreservedBase `,`
                              `dram_unreserved_base` `=` $dramUnreservedBase `,`
                              `dram_unreserved_end` `=` $dramUnreservedEnd `,`
-                             `physical_helper_cores` `=` $chipPhysicalHelperCores `,`
                              `supported_data_types` `=` `[` $supportedDataTypes `]` `,`
                              `supported_tile_sizes` `=` `[` $supportedTileSizes `]` `,`
                              `dst_register_size_tiles` `=` $dstRegisterSizeTiles `,`
@@ -340,21 +327,29 @@ def TTCore_MetalLayoutAttr : TTCore_Attr<"MetalLayout", "metal_layout", [TTCore_
   let extraClassDeclaration = [{
     static MetalLayoutAttr get(::mlir::MLIRContext *context,
                                      ArrayRef<int64_t> logicalShape,
-                                     uint64_t deviceGridRank,
+                                     ArrayRef<int64_t> deviceGridShape,
+                                     OOBVal oobVal, MemorySpace memorySpace);
+
+    static MetalLayoutAttr get(::mlir::MLIRContext *context,
+                                     ArrayRef<int64_t> logicalShape,
+                                     ArrayRef<int64_t> deviceGridShape,
                                      OOBVal oobVal, MemorySpace memorySpace,
-                                     DenseIntElementsAttr collapseIntervals = {},
-                                     ArrayRef<int64_t> dimAlignments = {});
+                                     DenseIntElementsAttr collapseIntervals);
+
+    static MetalLayoutAttr get(::mlir::MLIRContext *context,
+                                     ArrayRef<int64_t> logicalShape,
+                                     ArrayRef<int64_t> deviceGridShape,
+                                     OOBVal oobVal, MemorySpace memorySpace,
+                                     DenseIntElementsAttr collapseIntervals, ArrayRef<int64_t> dimAlignments);
 
     // Derive the physical tensor shape from logical shape and grid.
-    static llvm::SmallVector<int64_t> derivePhysicalShape(
-        ArrayRef<int64_t> logicalShape,
-        ArrayRef<int64_t> gridShape,
-        ArrayRef<int64_t> tileShape,
-        DenseIntElementsAttr collapseIntervals,
-        ArrayRef<int64_t> dimAlignments);
+    llvm::SmallVector<int64_t> getPhysicalShape(ArrayRef<int64_t> tileShape) const;
 
-    // Returns gridShape eltwise-mul shardShape
-    static llvm::SmallVector<int64_t> getUnshardedShape(ArrayRef<int64_t> gridShape, ArrayRef<int64_t> shardShape);
+    static llvm::SmallVector<int64_t> computeAlignments(ArrayRef<int64_t> logicalShape,
+                                   ArrayRef<int64_t> deviceGridShape,
+                                   ArrayRef<int64_t> normIntervals);
+
+    llvm::SmallVector<int64_t> getDeviceShape(ArrayRef<int64_t> gridShape, ArrayRef<int64_t> tileShape) const;
 
     // Get the corresponding memref type (essentially just drops grid dimensions).
     static MemRefType getMemRefType(RankedTensorType tensorType);
@@ -464,6 +459,10 @@ def TTCore_MeshShardDirectionAttr : EnumAttr<TTCore_Dialect, TTCore_MeshShardDir
   let assemblyFormat = "`<` $value `>`";
 }
 
+def TTCore_ShardStatusAttr : EnumAttr<TTCore_Dialect, TTCore_ShardStatus, "shard_status"> {
+  let assemblyFormat = "`<` $value `>`";
+}
+
 def TTCore_MeshShardTypeAttr : EnumAttr<TTCore_Dialect, TTCore_MeshShardType, "shard_type"> {
   let summary = "MeshShard shard_type attribute in TT dialect";
   let description = [{
@@ -476,46 +475,18 @@ def TTCore_MeshShardTypeAttr : EnumAttr<TTCore_Dialect, TTCore_MeshShardType, "s
   let assemblyFormat = "`<` $value `>`";
 }
 
-def TTCore_TensorMeshShardingAxisAttr : TTCore_Attr<"TensorMeshShardingAxis", "tensor_sharding", []> {
-  let summary = "Tensor mesh sharding axis info attribute in TT dialect.";
+def TTCore_TensorMeshAttr : TTCore_Attr<"TensorMesh", "tensor_mesh", []> {
+  let summary = "Tensor mesh in TT dialect.";
   let description = [{
-    Details per tensor dimension sharding and axes info.
-    - shard_shape: shard shape at a tensor dimension.
-    - (optional) axes: mesh shard dimensions. Axes may be empty if it is not being sharded.
+    Describes what mesh a tensor lives on.
   }];
-  let parameters = (ins "int64_t":$shard_shape,
-                        OptionalArrayRefParameter<"int64_t">:$axes);
-  let assemblyFormat = "$shard_shape (`(`$axes^`)`)?";
-}
-
-def TTCore_TensorMeshShardingAttr : TTCore_Attr<"TensorMeshSharding", "mesh_sharding", []> {
-  let summary = "Tensor mesh sharding attribute in TT dialect.";
-  let description = [{
-    Describes a tensor's multi-device status.
-    - Single device tensor has no TensorMeshShardingAttr.
-        tensor<784x16384xf32>
-
-    - Multi-device tensors have TensorMeshShardingAttr.
-      (i) multi-device tensor without tensor mesh shard axis indicates all devices in "mesh"
-          have full size tensors e.g., 784x16384 for
-            tensor<784x16384xf32, #ttcore.mesh_sharding<"mesh">>
-
-      (ii) multi-device tensor with tensor mesh shard axis indicate all devices in "mesh"
-          have sharded tensor defined by the TensorMeshShardingAxisAttr. e.g., 192x16384 for
-            tensor<784x16384xf32, #ttcore.mesh_sharding<"mesh", [ 4(1),  1]>>.
-          Here, 4(1) indicates shard_shape(shard_dim), so 784 should be sharded by 4
-          at "mesh"'s second hardware dimension. 1 indicates no sharding, so 16384 is not
-          being sharded.
-  }];
-  let parameters = (ins "StringAttr":$name,
-                        OptionalArrayRefParameter<"TensorMeshShardingAxisAttr">:$tensor_mesh_sharding_axis);
-  let assemblyFormat = "`<` $name (`,` `[` $tensor_mesh_sharding_axis^ `]` )? `>`";
+  let parameters = (ins "StringAttr":$name);
+  let assemblyFormat = "`<` $name `>`";
 
   let extraClassDeclaration = [{
-      static TensorMeshShardingAttr get(::mlir::MLIRContext *context, StringRef name) {
+      static TensorMeshAttr get(::mlir::MLIRContext *context, StringRef name) {
         auto meshNameStrAttr = mlir::StringAttr::get(context, name);
-        ::llvm::SmallVector<TensorMeshShardingAxisAttr> tensor_mesh_sharding_axis;
-        return TensorMeshShardingAttr::get(context, meshNameStrAttr, tensor_mesh_sharding_axis);
+        return TensorMeshAttr::get(context, meshNameStrAttr);
       }
   }];
 }
